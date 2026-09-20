@@ -95,7 +95,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const fallback = {
     title: 'Eyob Traditional Store',
     description: 'Handwoven Ethiopian traditional clothing, made in Addis Ababa and shipped worldwide.',
-    url: `${siteUrl}/#/shop`,
+    url: `${siteUrl}/shop`,
   };
 
   if (!slug || !supabaseUrl || !anonKey) {
@@ -132,7 +132,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         title: `${product.name} — Eyob Traditional Store`,
         description: (product.description as string)?.slice(0, 200) ?? fallback.description,
         image,
-        url: `${siteUrl}/#/product/${product.slug}`,
+        url: `${siteUrl}/product/${product.slug}`,
         price: usd ? (usd.amount / 100).toFixed(2) : undefined,
         currency: usd ? 'USD' : undefined,
       }),

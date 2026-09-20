@@ -6,8 +6,6 @@ export default defineConfig({
   plugins: [react()],
   resolve: { alias: { '@': resolve(__dirname, 'src') } },
   build: {
-    // Capacitor loads these files from the device filesystem, so asset URLs
-    // must be relative rather than rooted at '/'.
     assetsDir: 'assets',
     rollupOptions: {
       output: {
@@ -18,5 +16,9 @@ export default defineConfig({
       },
     },
   },
-  base: './',
+  // Absolute, not relative. A relative base breaks the clean /product/:slug
+  // URLs below, because index.html served at that path would resolve
+  // ./assets/... to /product/assets/... Capacitor 6 serves webDir from the
+  // root of a local server scheme rather than file://, so '/' works there too.
+  base: '/',
 });

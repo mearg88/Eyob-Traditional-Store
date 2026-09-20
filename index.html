@@ -23,6 +23,21 @@
   </head>
   <body class="bg-cotton-100">
     <div id="root"></div>
+    <script>
+      // Clean URLs exist so that link previews work: WhatsApp and Facebook
+      // crawlers are served real Open Graph tags at /product/<slug>, because a
+      // fragment (#/product/<slug>) never reaches the server at all.
+      //
+      // A human landing on the same clean URL gets index.html and is moved to
+      // the hash route the router actually uses. This runs before the bundle
+      // loads, so there is no flash of the wrong screen.
+      (function () {
+        var path = window.location.pathname;
+        if (path !== '/' && !window.location.hash) {
+          window.location.replace('/#' + path + window.location.search);
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
