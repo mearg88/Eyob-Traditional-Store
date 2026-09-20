@@ -1,0 +1,125 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-cotton-100 text-ink-900 font-sans antialiased;
+    /* Woven-cloth tooth: two faint diagonal threads over the cotton base.
+       Pure CSS, so it costs no bytes and no request on a 3G phone. */
+    background-image:
+      repeating-linear-gradient(45deg, rgba(188,167,132,0.045) 0 1px, transparent 1px 4px),
+      repeating-linear-gradient(-45deg, rgba(188,167,132,0.035) 0 1px, transparent 1px 5px);
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-display tracking-tight text-ink-900;
+    font-feature-settings: 'liga' 1, 'kern' 1;
+  }
+
+  /* Visible focus for keyboard users, suppressed for mouse clicks. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-clay-400 ring-offset-2 ring-offset-cotton-100;
+  }
+
+  ::selection {
+    @apply bg-clay-200 text-ink-900;
+  }
+}
+
+@layer components {
+  /* ---------------------------------------------------------------------
+     The tibeb band.
+
+     Drawn as a repeating SVG data URI rather than a photograph: it stays
+     crisp at any size, weighs a few hundred bytes, and needs no network
+     request — which matters on the mid-range Android phones over 3G that
+     make up a large share of this audience.
+
+     The motif is a simplified reading of a woven border: a row of diamonds
+     between two rules, in clay red, ochre and deep green.
+     --------------------------------------------------------------------- */
+  .tibeb-band {
+    height: 14px;
+    background-repeat: repeat-x;
+    background-size: auto 14px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='14' viewBox='0 0 48 14'%3E%3Crect width='48' height='14' fill='%23FAF6EE'/%3E%3Crect y='0.5' width='48' height='1' fill='%239C4F35'/%3E%3Crect y='12.5' width='48' height='1' fill='%239C4F35'/%3E%3Cpath d='M12 3.5 L16.5 7 L12 10.5 L7.5 7 Z' fill='%239C4F35'/%3E%3Cpath d='M36 3.5 L40.5 7 L36 10.5 L31.5 7 Z' fill='%239C4F35'/%3E%3Cpath d='M24 4.5 L27.5 7 L24 9.5 L20.5 7 Z' fill='%234A6148'/%3E%3Cpath d='M0 4.5 L3.5 7 L0 9.5 Z' fill='%23BF9A3C'/%3E%3Cpath d='M48 4.5 L44.5 7 L48 9.5 Z' fill='%23BF9A3C'/%3E%3C/svg%3E");
+  }
+
+  .tibeb-band-sm {
+    height: 8px;
+    background-size: auto 8px;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-sm px-5 py-3 text-sm
+           font-medium transition-colors duration-150 disabled:cursor-not-allowed
+           disabled:opacity-50 min-h-[44px];
+  }
+
+  .btn-primary {
+    @apply btn bg-clay-500 text-cotton-50 hover:bg-clay-600 active:bg-clay-700;
+  }
+
+  .btn-secondary {
+    @apply btn border border-ink-900/15 bg-transparent text-ink-900 hover:bg-cotton-200;
+  }
+
+  .btn-ghost {
+    @apply btn text-ink-500 hover:bg-cotton-200 hover:text-ink-900;
+  }
+
+  .card {
+    @apply rounded-sm border border-ink-900/8 bg-cotton-50 shadow-soft;
+  }
+
+  .field-label {
+    @apply mb-1.5 block text-xs font-medium uppercase tracking-wider text-ink-500;
+  }
+
+  .field {
+    @apply w-full rounded-sm border border-ink-900/15 bg-cotton-50 px-3.5 py-2.5
+           text-ink-900 placeholder:text-ink-400 focus:border-clay-400
+           min-h-[44px];
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-ink-900/12
+           bg-cotton-50 px-3 py-1.5 text-xs font-medium text-ink-500
+           transition-colors hover:border-clay-300 hover:text-ink-900;
+  }
+
+  .chip-active {
+    @apply border-clay-400 bg-clay-500 text-cotton-50 hover:border-clay-500 hover:text-cotton-50;
+  }
+
+  /* Skeleton while product images stream in over a slow connection. */
+  .shimmer {
+    background: linear-gradient(90deg, #F2EBDD 25%, #FAF6EE 50%, #F2EBDD 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite linear;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
