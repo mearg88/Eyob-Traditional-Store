@@ -1,0 +1,418 @@
+================================================================================
+ EYOB TRADITIONAL STORE - PROJECT QUESTIONNAIRE
+ Ethiopian Traditional Clothing E-Commerce Platform
+================================================================================
+
+HOW TO USE THIS FILE
+  - Type your answer on the line after "ANSWER:" - as short or long as you like.
+  - If you don't care about a question, write "your call" and I'll pick a
+    sensible default and tell you exactly what I chose.
+  - [MUST]      = I genuinely cannot design the system without this.
+  - [DEFAULT OK] = I have a good default; skip it if you're in a hurry.
+  - Send the file back however is easiest - paste it, upload it, whatever.
+
+
+================================================================================
+ ALREADY DECIDED (for the record - no action needed)
+================================================================================
+
+  * ARCHITECTURE: Plain React + Vite. No Next.js. One codebase for web and
+    mobile, wrapped by Capacitor, deployed static to Vercel.
+    NOTE: I will add a small crawler-detection function so WhatsApp/Facebook
+    link previews still show the product photo and price. Roughly 60 lines,
+    stays on the free tier.
+
+  * INVENTORY: Mixed - some ready-made stock, some made to order. Stock
+    tracking is the base for every product, with a "made to order" toggle
+    that adds a lead time and an "in production" order status.
+
+
+================================================================================
+ SECTION A - THE BUSINESS & THE OWNER
+================================================================================
+
+A1. [MUST] Is this an existing shop with real inventory today, or a brand new
+    venture starting from zero?
+
+    ANSWER:  ____________________________________________________________
+
+
+A2. [MUST] Roughly how many distinct products do you want live at launch?
+    (10? 50? 200?)
+
+    ANSWER:  ____________________________________________________________
+
+
+A3. [MUST] What is the owner using to track stock right now - paper ledger,
+    Excel/Google Sheets, a phone notes app, memory, nothing at all?
+    (I want to design for how he actually works, not how software
+    usually assumes people work.)
+
+    ANSWER:  ____________________________________________________________
+
+
+A4. [MUST] Will anyone besides Eyob ever log into the admin area? A family
+    member, a shop assistant, someone who packs orders?
+    (Decides whether I build user roles and permissions now or later.)
+
+    ANSWER:  ____________________________________________________________
+
+
+A5. [MUST] Does he need to run the admin from his PHONE? Adding products,
+    checking orders, marking things shipped - all from a phone?
+    (Most shop owners do everything on a phone. If yes, the admin gets
+    designed mobile-first, not as a desktop spreadsheet.)
+
+    ANSWER:  ____________________________________________________________
+
+
+A6. [MUST] What language does HE read comfortably - English, Amharic, both?
+    (The admin interface language matters more than the storefront's.)
+
+    ANSWER:  ____________________________________________________________
+
+
+A7. [DEFAULT OK] Where is the shop physically located? (Addis Ababa?
+    Elsewhere?) Affects courier options and local delivery.
+
+    ANSWER:  ____________________________________________________________
+
+
+A8. [DEFAULT OK] Is there a physical shop customers can visit, or is this
+    online-only? Should we offer local pickup as a delivery option?
+
+    ANSWER:  ____________________________________________________________
+
+
+================================================================================
+ SECTION B - THE CATALOGUE, SIZES & PHOTOS
+================================================================================
+
+B1. [MUST] For the READY-MADE items: are there real variants with separate
+    stock counts (e.g. one kemis in S/M/L x 3 border colours = 9 separate
+    counts), or is each physical garment basically unique - one piece, sold
+    once, gone?
+    (This is the single biggest decision in the whole database.)
+
+    ANSWER:  ____________________________________________________________
+
+
+B2. [MUST] How do you describe SIZE today? Traditional garments often don't
+    map to S/M/L at all - a netela might be sized by length in metres, a
+    gabi by weight or thread count, a kemis tailored to measurements.
+    Please walk me through ONE real product exactly as you'd list it,
+    with all its options. A messy real example beats a tidy made-up one.
+
+    ANSWER:  ____________________________________________________________
+             ____________________________________________________________
+             ____________________________________________________________
+
+
+B3. [MUST] For the MADE-TO-ORDER items: does the customer submit their own
+    measurements (chest, waist, length, sleeve...), or do they just pick a
+    standard size and you tailor to that?
+    If measurements: which ones exactly, and in cm or inches?
+
+    ANSWER:  ____________________________________________________________
+
+
+B4. [MUST] For made-to-order: what lead time should we quote? Does it vary
+    by garment type? (e.g. "kemis: 3 weeks, netela: 1 week")
+
+    ANSWER:  ____________________________________________________________
+
+
+B5. [MUST] PHOTOS: how many per product, typically? Phone photos or
+    professional shots? Do you already have a photo library, and roughly
+    how big is it in total (megabytes / gigabytes)?
+    (Storage is capped at 10GB free - I need to plan compression around
+    your real volume.)
+
+    ANSWER:  ____________________________________________________________
+
+
+B6. [DEFAULT OK] What categories do you want on the site? My starting guess:
+      - Habesha Kemis (women's dresses)
+      - Netela / Shash (shawls, headscarves)
+      - Gabi / Shemma (heavier wraps and blankets)
+      - Kuta (men's wraps)
+      - Men's traditional wear
+      - Children's wear
+      - Accessories / jewellery
+    Add, remove or rename anything.
+
+    ANSWER:  ____________________________________________________________
+
+
+B7. [DEFAULT OK] What should customers be able to FILTER by? My guess:
+    category, price, colour, fabric type, tibeb (border) pattern style,
+    occasion (wedding / holiday / everyday), gender, age group.
+
+    ANSWER:  ____________________________________________________________
+
+
+B8. [DEFAULT OK] Do you want a SIZE GUIDE page? If so, do you have any
+    existing measurement chart, or should I build one from scratch with
+    your input?
+
+    ANSWER:  ____________________________________________________________
+
+
+================================================================================
+ SECTION C - MONEY  (the highest-risk part of the project)
+================================================================================
+
+C1. [MUST] Do you set prices in ETB and let the site convert them for
+    foreign customers, or do you want to type a separate USD / EUR price
+    for each product by hand?
+    (Auto-convert is much less work to run. Manual gives you cleaner
+    numbers - $145 instead of $137.42 - and protects your margin.)
+
+    ANSWER:  ____________________________________________________________
+
+
+C2. [MUST] If auto-converting: which exchange rate?
+      (a) the official National Bank of Ethiopia rate
+      (b) your own rate with a margin added (e.g. NBE + 5%) to absorb
+          currency swings
+    And how often should it refresh - daily automatically, or a "update
+    rates" button the owner presses when he wants?
+
+    ANSWER:  ____________________________________________________________
+
+
+C3. [MUST] Should diaspora customers pay a HIGHER PRICE than local customers
+    for the same garment - beyond just shipping?
+    Many Ethiopian shops do this deliberately. I need an explicit yes or no.
+    It changes the database structure, not just what's displayed, and it
+    changes how I stop someone faking their location to get local prices.
+
+    ANSWER:  ____________________________________________________________
+
+
+C4. [MUST] Which currencies should the site DISPLAY at launch?
+    My guess: ETB, USD, EUR, GBP, CAD, AED, AUD, SAR.
+    And separately - which do you actually want to CHARGE in through Chapa?
+
+    ANSWER:  ____________________________________________________________
+
+
+C5. [MUST] REFUND POLICY: how many days, in what condition, and who pays
+    the return shipping?
+
+    ANSWER:  ____________________________________________________________
+
+
+C6. [MUST] Are refunds processed inside Chapa (automatic reversal), or
+    manually by bank transfer / mobile money with the admin just recording
+    that it happened?
+
+    ANSWER:  ____________________________________________________________
+
+
+C7. [DEFAULT OK] Do you already have a Chapa merchant account and API keys?
+    If not, I'll build against their test keys and hand you a step-by-step
+    go-live checklist.
+
+    ANSWER:  ____________________________________________________________
+
+
+C8. [DEFAULT OK] Promo / discount codes at launch, or save for phase 2?
+    (My recommendation: phase 2 - it's real complexity for something you
+    may not use in month one.)
+
+    ANSWER:  ____________________________________________________________
+
+
+C9. [DEFAULT OK] Should the site show prices INCLUDING or EXCLUDING any tax
+    or VAT? Is VAT applicable to your sales?
+
+    ANSWER:  ____________________________________________________________
+
+
+================================================================================
+ SECTION D - SHIPPING & DELIVERY
+================================================================================
+
+D1. [MUST] Which couriers do you realistically use?
+      Inside Ethiopia:  ______________________________________________
+      International:    ______________________________________________
+    (DHL, FedEx, Aramex, Ethiopian Postal Service, local motorbike
+    delivery, someone's cousin with a car - all valid answers.)
+
+    ANSWER:  ____________________________________________________________
+
+
+D2. [MUST] How should shipping be PRICED?
+      (a) flat rate per zone      - easiest for you to maintain
+      (b) by weight               - fairest, more admin work
+      (c) per item                - simple, gets expensive on big orders
+    Please give me one REAL example in your own words, e.g.
+    "Addis 150 ETB, rest of Ethiopia 300 ETB, USA $35 for the first item
+    plus $10 each extra".
+
+    ANSWER:  ____________________________________________________________
+             ____________________________________________________________
+
+
+D3. [MUST] How do you want the world grouped into shipping zones?
+    My suggestion:
+      - Addis Ababa
+      - Rest of Ethiopia
+      - USA + Canada
+      - Europe + UK
+      - Middle East (UAE, Saudi, Qatar, Kuwait...)
+      - Australia + New Zealand
+      - Rest of world
+    Change anything that doesn't match how you actually ship.
+
+    ANSWER:  ____________________________________________________________
+
+
+D4. [DEFAULT OK] What delivery timeframes should we quote per zone?
+    (e.g. "Addis: 1-2 days, USA: 7-10 days")
+
+    ANSWER:  ____________________________________________________________
+
+
+D5. [DEFAULT OK] Should we display a customs/duties disclaimer for
+    international orders ("import duties are the buyer's responsibility")?
+    I strongly recommend YES - it prevents angry emails later.
+
+    ANSWER:  ____________________________________________________________
+
+
+D6. [DEFAULT OK] Minimum order value for international orders? Free
+    shipping over a certain amount?
+
+    ANSWER:  ____________________________________________________________
+
+
+D7. [DEFAULT OK] Cash on delivery inside Addis - do you want it, or
+    online payment only?
+
+    ANSWER:  ____________________________________________________________
+
+
+================================================================================
+ SECTION E - CUSTOMERS & COMMUNICATION
+================================================================================
+
+E1. [MUST] AMHARIC language support - needed at launch, or English first
+    with Amharic added later?
+    (Honest cost: it roughly doubles the text work and needs proper font
+    handling. Worth it if a real share of your buyers are local.)
+
+    ANSWER:  ____________________________________________________________
+
+
+E2. [MUST] Order emails - do you have a domain name and any email service
+    in mind? Free options that work well: Resend (3,000 emails/month free)
+    or Brevo. Supabase's built-in email is not suitable for real customer
+    emails.
+
+    ANSWER:  ____________________________________________________________
+
+
+E3. [MUST] Would you rather send order updates by WHATSAPP or TELEGRAM
+    instead of - or alongside - email? For Ethiopian customers these are
+    often far more effective than email.
+
+    ANSWER:  ____________________________________________________________
+
+
+E4. [DEFAULT OK] Should the owner get an instant notification on every new
+    order? My recommendation: yes, via Telegram - instant and free.
+
+    ANSWER:  ____________________________________________________________
+
+
+E5. [DEFAULT OK] Do you want customer reviews / ratings on products?
+    (Adds trust for diaspora buyers, adds moderation work for you.)
+
+    ANSWER:  ____________________________________________________________
+
+
+E6. [DEFAULT OK] Wishlist / save-for-later feature - launch or later?
+
+    ANSWER:  ____________________________________________________________
+
+
+E7. [DEFAULT OK] Any social media accounts to link, and do you want an
+    Instagram feed on the homepage?
+
+    ANSWER:  ____________________________________________________________
+
+
+================================================================================
+ SECTION F - DESIGN & BRAND
+================================================================================
+
+F1. [MUST] Is there existing branding? A logo, set colours, a name you're
+    committed to? Is "Eyob Traditional Store" the actual display name, or
+    a working title?
+
+    ANSWER:  ____________________________________________________________
+
+
+F2. [MUST] Do you have a domain name already, or do you need one?
+
+    ANSWER:  ____________________________________________________________
+
+
+F3. [MUST] What TONE are we aiming for?
+      (a) HERITAGE / TRADITIONAL - earthy, textural, reverent; feels like
+          a cultural institution; heavy on craft and story
+      (b) MODERN / CONTEMPORARY - crisp, editorial, minimal; feels like a
+          high-end fashion label that happens to sell Ethiopian clothing
+      (c) a blend - tell me which way it leans
+    I'll build TWO clickable visual directions before writing any product
+    code, and you pick.
+
+    ANSWER:  ____________________________________________________________
+
+
+F4. [DEFAULT OK] Any websites whose look you admire - Ethiopian or not,
+    clothing or not? Even "I like how X feels" helps enormously.
+
+    ANSWER:  ____________________________________________________________
+
+
+F5. [DEFAULT OK] Anything you specifically DON'T want? (Things that look
+    cheap, colours you dislike, styles that feel wrong for the garments.)
+
+    ANSWER:  ____________________________________________________________
+
+
+================================================================================
+ SECTION G - ANYTHING ELSE
+================================================================================
+
+G1. Is there a deadline, a launch date, or an event you're aiming for?
+
+    ANSWER:  ____________________________________________________________
+
+
+G2. Is there anything about how this business works that I haven't asked
+    about and should know? Anything unusual about how customers buy,
+    how you price, how you ship, or what you've seen go wrong before?
+
+    ANSWER:  ____________________________________________________________
+             ____________________________________________________________
+             ____________________________________________________________
+
+
+================================================================================
+ WHAT HAPPENS NEXT
+================================================================================
+
+  1. You send this back filled in.
+  2. I ask follow-up questions on anything that opens up new ground.
+  3. I propose the DATABASE DESIGN in plain language - you sign off.
+  4. I propose the BUILD ORDER (milestones) - you sign off.
+  5. I show you TWO DESIGN DIRECTIONS - you pick one.
+  6. We build, milestone by milestone, and I check in at each one.
+
+  Nothing gets coded until steps 3 and 4 are agreed.
+
+================================================================================
