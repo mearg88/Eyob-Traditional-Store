@@ -1,0 +1,787 @@
+================================================================================
+ EYOB TRADITIONAL STORE - ROUND 2
+ Re-evaluation of your answers, and the questions I still need answered
+================================================================================
+
+HOW TO USE THIS FILE
+  - Section 0 is me telling you what I now think you're building. READ THIS
+    FIRST. If I have misunderstood the business, everything after it is wrong.
+  - Sections 1-3 are questions, sorted by how much they block me.
+  - [BLOCKER]   = I cannot write correct code without this. ~14 of these.
+  - [IMPORTANT] = I can start, but I'll need it within days.
+  - [DEFAULT OK] = say "your call" and I'll choose and tell you what I chose.
+  - Answer on the line after ANSWER:.
+
+
+================================================================================
+ SECTION 0 - WHAT I NOW THINK YOU ARE BUILDING
+ (If any of this is wrong, tell me and ignore the rest of the file)
+================================================================================
+
+THE BIG REALISATION
+-------------------
+You are not running a shop. You are running a MADE-TO-MEASURE ATELIER with a
+catalogue.
+
+Your answer to B1 - "there are no pre-made clothes, there are designs which
+users can order based on them" - combined with A3 - "there is no stock
+tracking" - changes the entire foundation of the system.
+
+What you actually sell is a DESIGN. A design is a template, not an object. It
+can be ordered ten times by ten people and each one is cut differently, because
+each is made to that person's body. A design never sells out and never needs
+counting.
+
+The prototype I built assumed physical garments on a shelf. That was wrong.
+Here is what that mistake cost, so you can see I'm not hiding it:
+
+  DELETED - built on a wrong assumption:
+    - Stock counts and availability status
+    - "One of a kind / sold" logic
+    - The reservation system that stopped two people buying the last item
+      (there IS no last item - this problem does not exist for you)
+    - Shipping zones and shipping rate tables
+    - Shipping cost calculation at checkout
+    - Promo codes (you moved these to phase 2)
+    - Manual per-currency price entry
+
+  KEPT - still correct and reusable:
+    - Project setup, build tooling, Capacitor mobile wrapper
+    - The image processing pipeline (resize, compress, WebP)
+    - Chapa payment module and webhook signature verification
+    - Row Level Security patterns
+    - Link-preview crawler function for WhatsApp/Facebook sharing
+    - Order and payment audit trail
+
+  NEW - the heart of your actual business:
+    - Designs catalogue instead of a stock catalogue
+    - Customer measurement capture
+    - THE MEASUREMENT VERIFICATION WORKFLOW (see below - this is the system)
+    - Real-time currency conversion with IP-based country detection
+    - Full role and permission system
+    - Production pipeline tracking
+    - Interactive animated measuring guide
+
+THE MEASUREMENT WORKFLOW IS THE PRODUCT
+---------------------------------------
+Your answer to B2 describes something no normal e-commerce platform does:
+
+  "a user takes measurements and there is a professional who verifies they're
+   correct, if not the professional calls the user and takes the measurement by
+   phone and edits it in the website"
+
+That is the single most important sentence in this entire document. It means:
+
+  1. A human expert sits between the order and production.
+  2. Measurements can be CHANGED BY STAFF after the customer submits them.
+  3. A phone call is part of your normal process, not an exception.
+  4. Therefore phone number is not optional - it is as critical as payment.
+
+This creates a work queue your staff live in every day. It needs to be the
+best-designed screen in the entire application, and it needs an audit trail: if
+a customer later says "you made it wrong", you must be able to show exactly
+which numbers were used, who approved them, and when.
+
+DELIVERY IS INVISIBLE
+---------------------
+D2: "delivery fees are included in the price, there should be no delivery field"
+D3: "no shipping zones, there is a specific address or a pickup place"
+
+So checkout has NO shipping step and NO shipping cost. The customer chooses
+either "deliver to my address" or "I'll collect it from the shop". One price,
+all in. This is a big simplification and I like it - but it creates a pricing
+problem I have to ask you about (Q1.1).
+
+PRICING IS NOW AUTOMATIC, NOT MANUAL
+------------------------------------
+You reversed the earlier decision. Now: prices are set in USD, converted live
+by real forex rates, and the customer's country decides what they see.
+
+  Ethiopia            -> ETB (local price)
+  USA, Canada, Australia, UK, Israel, EU members -> their own currency
+  Everywhere else     -> USD
+
+This is much less work for you and much more work for me - forex rates that
+change under a customer mid-checkout are a genuine source of bugs and disputes.
+Questions 1.2 to 1.6 exist because of this.
+
+
+================================================================================
+ SECTION 1 - BLOCKERS
+ I cannot write correct code until these are answered.
+================================================================================
+
+--------------------------------------------------------------------------------
+ MONEY - the part that loses real money if I guess wrong
+--------------------------------------------------------------------------------
+
+Q1.1 [BLOCKER] THE ONE-PRICE-FOR-THE-WHOLE-WORLD PROBLEM
+
+  You said delivery is included in the price, and international customers pay
+  more precisely because delivery is baked in. But there are no shipping zones.
+
+  So a single international USD price has to cover delivery to Washington DC,
+  to London, to Tel Aviv, AND to Sydney. Those cost you wildly different
+  amounts - sending a heavy gabi to Australia can cost three times what it
+  costs to send it to Europe.
+
+  Which of these is true?
+
+    (a) ONE global international price. You absorb the difference, pricing
+        high enough that the worst destination still makes money.
+    (b) The international price VARIES BY COUNTRY or region. You set, e.g.,
+        USA $260, Europe $240, Australia $300 - but the customer still sees
+        one all-in number with no shipping line.
+    (c) One base price plus an invisible per-country uplift percentage that
+        you configure once (e.g. Australia +15%) and applies to every design.
+    (d) Something else - describe it.
+
+  I recommend (c): you set one USD price per design, and one uplift per country
+  group in settings. Change a courier price later and you edit one number
+  instead of 300.
+
+    ANSWER:  ____________________________________________________________
+
+
+Q1.2 [BLOCKER] IS THE ETHIOPIAN PRICE SEPARATE, OR CONVERTED?
+
+  You said prices are set in USD. You also said Ethiopians see ETB.
+
+  If the ETB price were just the USD price converted at forex, a local customer
+  would pay the same as a diaspora customer - including the international
+  delivery cost baked into it. At current rates that would price you out of
+  your own domestic market entirely.
+
+  So I believe you set TWO prices per design, independently:
+      - a LOCAL price, typed in ETB
+      - an INTERNATIONAL price, typed in USD
+  and forex only ever converts the USD one into GBP/EUR/CAD/etc.
+
+  Is that right? If not, explain how local pricing actually works.
+
+    ANSWER:  ____________________________________________________________
+
+
+Q1.3 [BLOCKER] WHERE DO FOREX RATES COME FROM, AND HOW OFTEN? (C2 was blank)
+
+  Options, all real:
+    (a) A free public rate API, refreshed automatically once a day.
+        Free, no signup. Rates are mid-market, no margin for you.
+    (b) Same, but I add a margin you control (e.g. +3%) to protect you from
+        currency swings between the sale and the money landing.
+    (c) The National Bank of Ethiopia rate for ETB specifically.
+    (d) An "update rates now" button in the admin, no automation.
+
+  I recommend (b) with a daily refresh AND the manual button, because the birr
+  has moved sharply and an unprotected mid-market rate can quietly eat your
+  margin.
+
+  What margin percentage, if any?
+
+    ANSWER:  ____________________________________________________________
+
+
+Q1.4 [BLOCKER] WHEN DOES THE EXCHANGE RATE GET LOCKED?
+
+  A customer in London opens your site at 9am and sees GBP 190. They add
+  measurements, get verified, and pay at 4pm. The rate has moved. What do they
+  pay?
+
+    (a) The rate is locked when the order is placed. The price they agreed to
+        is the price they pay, even if the rate moves. (Recommended - this is
+        what every serious shop does, and it prevents "the price changed!"
+        complaints.)
+    (b) The rate is live right up to the moment of payment.
+
+  This matters more than it sounds because of your verification step - there
+  may be DAYS between a customer choosing a design and the payment going
+  through.
+
+    ANSWER:  ____________________________________________________________
+
+
+Q1.5 [BLOCKER] WHAT CURRENCY DOES CHAPA ACTUALLY CHARGE IN?
+
+  This is the one I am most worried about, and I need you to check it on your
+  Chapa dashboard because I cannot reach their documentation from here.
+
+  Showing a price in GBP is easy. CHARGING in GBP requires Chapa to support
+  settlement in GBP. My strong expectation is that Chapa settles in ETB and
+  USD only, and that international cards are charged in USD.
+
+  If so, a customer in London sees "GBP 190" and their bank statement says
+  "USD 240" plus the bank's own conversion fee. That is normal and legal, but
+  it MUST be disclosed at checkout or you will get chargebacks and angry
+  emails.
+
+  Please log into Chapa and tell me: which currencies can you actually
+  RECEIVE money in?
+
+    ANSWER:  ____________________________________________________________
+
+
+Q1.6 [BLOCKER] THE EU IS NOT ONE CURRENCY
+
+  You said "all members of European Union can use their local currency".
+  The EU has 27 members and about 10 different currencies. Poland uses zloty,
+  Sweden uses krona, Czechia uses koruna, Denmark uses krone, Hungary uses
+  forint, Romania uses leu, Bulgaria uses lev.
+
+  Do you want:
+    (a) Eurozone countries see EUR; non-euro EU countries ALSO see EUR
+        (simpler, and most Europeans are comfortable with EUR)
+    (b) Every EU country sees its own national currency (10+ currencies to
+        support, more forex pairs, more that can break)
+
+  I recommend (a).
+
+  Also confirm the full permitted list. I have: USA (USD), Canada (CAD),
+  Australia (AUD), UK (GBP), Israel (ILS), EU (EUR). Anything missing? What
+  about Switzerland, Norway, UAE, Saudi Arabia - there are large Ethiopian
+  communities in the Gulf.
+
+    ANSWER:  ____________________________________________________________
+
+
+--------------------------------------------------------------------------------
+ THE MEASUREMENT WORKFLOW - your core process
+--------------------------------------------------------------------------------
+
+Q1.7 [BLOCKER] DOES THE CUSTOMER PAY BEFORE OR AFTER VERIFICATION?
+
+  This single decision reshapes the entire order flow. Three options:
+
+    (a) PAY FIRST, then verify. Money is secure, but if the professional finds
+        the measurements unusable and cannot reach the customer, you are
+        holding money for a garment you cannot make - and owe a refund.
+
+    (b) VERIFY FIRST, then pay. No wasted expert time on people who were never
+        going to buy, but you'll lose customers in the gap between submitting
+        measurements and being asked to pay days later.
+
+    (c) DEPOSIT first (say 30-50%), verify, then the balance before dispatch.
+        Commits the customer, limits your refund exposure, standard for
+        bespoke tailoring worldwide.
+
+  I recommend (c) for international orders, but it IS more complex - two
+  payments per order. Tell me what you actually want. If you're unsure, tell me
+  what happens today in your shop when someone orders a dress.
+
+    ANSWER:  ____________________________________________________________
+
+
+Q1.8 [BLOCKER] WHAT EXACTLY CAN THE PROFESSIONAL DO?
+
+  Walk me through a real verification. The customer has submitted numbers. The
+  professional opens them. Then what?
+
+    - Do they approve/reject the whole set, or field by field?
+    - When they change a number, does the CUSTOMER have to confirm the change
+      before production starts? (I strongly recommend yes - it protects you in
+      a dispute: "you approved these measurements on this date")
+    - What makes a measurement "obviously wrong"? Is it experience, or are
+      there rules I can encode? (e.g. "waist larger than bust by more than
+      20cm is suspicious", "sleeve longer than total length is impossible")
+      If you can give me even three rules, the system can flag problems
+      automatically before a human looks.
+    - Can the professional REJECT an order outright? What happens then?
+
+    ANSWER:  ____________________________________________________________
+             ____________________________________________________________
+
+
+Q1.9 [BLOCKER] WHICH MEASUREMENTS, EXACTLY?
+
+  You said "customers are self-measured and they submit the measurements".
+  You did not say WHICH ones. This is the actual data model of your business
+  and I refuse to guess it.
+
+  From your photos I can see you make at least: fitted off-shoulder dresses,
+  full ballgowns with structured bodices, and flowing kemis. These need
+  different measurements from each other.
+
+  Two questions:
+    (a) List every measurement your tailors actually need. My starting guess
+        from the research: bust, waist, hips, shoulder-to-shoulder,
+        shoulder-to-waist, arm length, total length. Add, remove, correct.
+    (b) Does the list DIFFER BY GARMENT TYPE? A netela needs almost nothing.
+        A structured bridal gown might need bust, underbust, waist, hips,
+        shoulder, armhole, bicep, wrist, nape-to-waist, waist-to-floor.
+        If yes, I'll build measurement templates per category and the customer
+        only sees the fields relevant to what they're ordering.
+
+    ANSWER:  ____________________________________________________________
+             ____________________________________________________________
+
+
+Q1.10 [BLOCKER] WHAT IF THE CUSTOMER CANNOT BE REACHED?
+
+  Your process depends on a phone call. Diaspora customers are in timezones
+  8-10 hours away from Addis. Some will not answer an Ethiopian number.
+
+    - How many attempts before you give up?
+    - Is there a WhatsApp fallback? (I suspect this is actually your main
+      channel and the "call" is often a WhatsApp call - tell me.)
+    - After how long without contact do you cancel and refund?
+    - Can the customer BOOK a call slot so they know when you're ringing?
+      (This would remove most of the problem.)
+
+    ANSWER:  ____________________________________________________________
+
+
+--------------------------------------------------------------------------------
+ PEOPLE AND PERMISSIONS
+--------------------------------------------------------------------------------
+
+Q1.11 [BLOCKER] WHO ARE THE STAFF, AND WHAT CAN EACH ONE DO?
+
+  You said admins should have complete control "including creating users who
+  have roles in different permissions". That's a real permission system, so I
+  need the actual roles.
+
+  Here is my proposal. Correct it:
+
+    OWNER          Everything, including creating other admins and seeing
+                   revenue. Only role that can delete things permanently.
+    MANAGER        Everything except creating admins and changing payment
+                   settings.
+    MEASUREMENT    Sees ONLY the verification queue and customer contact
+    SPECIALIST     details. Can edit measurements. Cannot see prices,
+                   revenue, or payment information.
+    PRODUCTION     Sees orders that are paid and verified, with their
+                   measurements. Moves them through production stages.
+                   Cannot see payment details or customer addresses.
+    CONTENT        Adds and edits designs, photos, descriptions, prices.
+                   Cannot see orders or customers at all.
+    SUPPORT        Reads orders and customers, replies to reviews. Changes
+                   nothing financial.
+
+  Questions:
+    - Are these the right roles? Which would you actually use on day one?
+    - Should MEASUREMENT SPECIALIST really be blind to prices? (I think yes -
+      it limits damage if that account is ever compromised.)
+    - Does anyone need access from outside Ethiopia?
+
+    ANSWER:  ____________________________________________________________
+             ____________________________________________________________
+
+
+Q1.12 [BLOCKER] DO CUSTOMERS NEED ACCOUNTS?
+
+  Your process involves measurements, verification, a phone call, days of
+  production, then delivery. A guest with no account has no way back in to see
+  what's happening.
+
+  I believe accounts should be MANDATORY for ordering - not optional - because
+  the customer needs a place to watch their order and re-use their
+  measurements next time. Saved measurements alone is a strong reason to
+  return.
+
+  Do you agree? And how do people sign up - email and password, phone number
+  and SMS code, or Google sign-in? (Phone/SMS costs money per message. Email
+  is free. Google is free and fastest.)
+
+    ANSWER:  ____________________________________________________________
+
+
+--------------------------------------------------------------------------------
+ CATALOGUE AND PHOTOS
+--------------------------------------------------------------------------------
+
+Q1.13 [BLOCKER] HOW MANY DESIGNS DO YOUR 41 PHOTOS REPRESENT?
+
+  I found 41 photographs in the repository. They are genuinely excellent -
+  professional studio and location work, and they change my view of the design
+  direction (see Q3.1).
+
+  But I don't know what they ARE. Is it:
+    - 41 separate designs, one photo each?
+    - About 12 designs with 3-4 photos each?
+    - A mix, including shots that aren't products at all?
+
+  I need a naming or grouping. The files are called IMG_20260922_211640_606.jpg
+  which tells me nothing. Options:
+    (a) You send me a list: "photos 1-4 are 'Aster Wedding Gown', 5-7 are..."
+    (b) I build the admin first, you upload and name them yourself - probably
+        faster for you and it tests the admin properly.
+    (c) I group them by visual similarity, give them placeholder names, and
+        you rename them later.
+
+  Also: you said 100-300 products at launch, but I have 41 photos. Where do
+  the rest come from, and when?
+
+    ANSWER:  ____________________________________________________________
+
+
+Q1.14 [BLOCKER] WHAT IS THE LEAD TIME, REALLY?
+
+  B4 says the admin sets completion days per design. D4 says delivery
+  timeframes are entered manually by the admin per order.
+
+  So a customer needs to be told a date. Is that date:
+    (a) production days (from the design) + delivery days (typed per order)?
+    (b) one number the admin types per order, covering everything?
+    (c) production days from the design, and delivery quoted separately later?
+
+  And critically - given your refund promise in C5 - is that date a PROMISE or
+  an ESTIMATE? Because you said if it's late, you refund in full AND pay the
+  delivery cost. That's an expensive guarantee against a courier you don't
+  control. See Q2.1.
+
+    ANSWER:  ____________________________________________________________
+
+
+================================================================================
+ SECTION 2 - IMPORTANT
+ I can start building without these, but I'll need them within a few days.
+================================================================================
+
+Q2.1 [IMPORTANT] YOUR REFUND GUARANTEE WORRIES ME
+
+  C5: "if customers didn't receive the goods on the promised day then the
+  company will return their money and pay the delivery fee."
+
+  As written, that is an unconditional money-back guarantee against a delivery
+  date you do not control. A courier delay in customs in Sydney costs you the
+  entire sale plus the shipping.
+
+  I am not going to talk you out of it - it is a powerful trust signal and
+  trust is exactly what a diaspora customer buying a $250 dress online needs.
+  But I need to know how it OPERATES:
+
+    - Does the customer claim it, or is it automatic when the date passes?
+    - Automatic refunds are dangerous: a courier marking something "delivered"
+      late when it actually arrived on time would trigger refunds you don't
+      owe. I strongly recommend the customer claims it and an admin approves.
+    - Does the promised date pause while you wait for the customer to answer
+      the verification call? (It must, or slow customers cost you money.)
+    - Does it apply to customs delays? Those can be weeks and are nobody's
+      fault.
+
+    ANSWER:  ____________________________________________________________
+
+
+Q2.2 [IMPORTANT] THE INTERACTIVE MEASURING GUIDE
+
+  B8: "make it very interactive animated so users can measure themselves easily"
+
+  This is one of the most valuable things in the whole project - it directly
+  reduces the number of phone calls your professional has to make. I want to
+  build it properly.
+
+  What I propose: for each measurement, an animated figure showing exactly
+  where the tape goes, a plain-language instruction, a common-mistake warning,
+  and the input box right there. The customer works through them one at a
+  time on their phone, and the guide checks each number as it's entered.
+
+  Questions:
+    - Is the customer measuring THEMSELVES alone, or with someone helping?
+      (Some measurements are impossible alone - this changes the instructions.)
+    - Do you want a video option? (You'd have to film it; I can build the
+      player. Video is far more convincing than animation for this.)
+    - Should it support cm AND inches? (Diaspora in the US think in inches,
+      everyone else in cm. I'd store cm always and convert for display.)
+    - Do you have any existing measuring instructions you give customers now?
+
+    ANSWER:  ____________________________________________________________
+
+
+Q2.3 [IMPORTANT] WHAT DOES "MOST SECURE CHAPA API" MEAN TO YOU?
+
+  You said "build the app using Chapa's most secure API or product". I want to
+  make sure we mean the same thing. What I will build regardless:
+
+    - Your secret key lives only on the server, never in the app
+    - The customer is redirected to Chapa's own hosted payment page, so card
+      numbers never touch our code or database
+    - Payment is confirmed ONLY by a signed server-to-server webhook, never by
+      the customer's browser claiming success
+    - Every webhook signature is cryptographically verified
+    - Duplicate webhooks are handled safely
+    - Full audit record of every payment
+
+  Is there a specific Chapa product you were told to use? They have more than
+  one integration style. If you can see the options in your dashboard, tell me
+  what they're called.
+
+    ANSWER:  ____________________________________________________________
+
+
+Q2.4 [IMPORTANT] WHATSAPP COSTS MONEY - HOW DO YOU WANT TO HANDLE IT?
+
+  You said WhatsApp is better, with Telegram and email alongside.
+
+  The honest position:
+    - Telegram bot: free, instant, five minutes to set up. Works today.
+    - Email: free up to 3,000/month. Works today. Needs a domain (you have
+      none yet - Q2.5).
+    - WhatsApp Business API: requires Meta business verification, an approved
+      phone number, pre-approved message templates, and costs money per
+      conversation. Weeks of approval, ongoing cost.
+
+  Three paths:
+    (a) Launch with email + Telegram. Add a "chat with us on WhatsApp" button
+        that opens a normal chat - free, works immediately, no API.
+    (b) Start the WhatsApp Business API application now in parallel, because
+        it takes weeks anyway. Costs money.
+    (c) WhatsApp only, and accept the delay.
+
+  I recommend (a) now and (b) started in the background.
+
+    ANSWER:  ____________________________________________________________
+
+
+Q2.5 [IMPORTANT] YOU NEED A DOMAIN SOONER THAN YOU THINK
+
+  You have no domain and no email service. That blocks more than you'd expect:
+    - Order confirmation emails (customers WILL mark a free-hosted sender
+      as spam)
+    - The payment webhook needs a stable address
+    - Link previews when customers share designs on WhatsApp
+    - Any trust at all with a diaspora customer spending $250
+
+  A domain costs roughly $10-15 a year. Do you want me to carry on with a
+  temporary free address for now and swap it later (it's a 10-minute change),
+  or will you get a domain this week?
+
+  Also: what name? You said "Eyob Traditional Store" is a placeholder and you
+  have no brand name yet. That's fine for building, but the name affects the
+  design work, so the sooner the better.
+
+    ANSWER:  ____________________________________________________________
+
+
+Q2.6 [IMPORTANT] IP DETECTION - AND WHAT HAPPENS WHEN IT'S WRONG
+
+  You want the country detected by IP to choose the currency. Good news: both
+  Vercel and Cloudflare tell us the visitor's country for free, with no
+  third-party service and no cost.
+
+  But it will sometimes be wrong - VPNs, travellers, corporate networks. An
+  Ethiopian visiting family in Germany would see EUR prices.
+
+  So:
+    - Can the customer manually override the currency? (I recommend yes,
+      with a visible switcher.)
+    - CRITICAL: if someone in the USA switches the site to ETB, do they get
+      the cheap local price? They must NOT. I will tie the actual price to
+      the DELIVERY ADDRESS, not to the displayed currency - so choosing birr
+      changes only what they look at, never what they pay. Confirm you're
+      happy with that rule.
+    - What about an Ethiopian ordering FROM Ethiopia but shipping to a
+      relative abroad? Local price or international? (I'd say international -
+      it's the delivery that costs you.)
+
+    ANSWER:  ____________________________________________________________
+
+
+Q2.7 [IMPORTANT] PICKUP AT THE SHOP
+
+  D3 mentions "a specific address or a pickup place". So at checkout the
+  customer chooses delivery or collection.
+
+    - If they collect, is the price LOWER? (No delivery cost to you. If the
+      price doesn't drop, nobody will choose pickup.)
+    - Is pickup available to anyone, or only Addis customers?
+    - Do you want appointment booking for collection, or just "come when
+      it's ready"?
+    - You mentioned a workshop where customers can inspect quality. Should
+      the site let people book a visit? That's a genuine trust-builder for
+      local customers.
+
+    ANSWER:  ____________________________________________________________
+
+
+Q2.8 [IMPORTANT] PRODUCTION STAGES
+
+  Your customers wait weeks. They will want to know what is happening. What
+  stages does a garment actually pass through in your workshop? My guess:
+
+     Order placed -> Measurements verified -> Fabric cut -> Sewing ->
+     Embroidery/tibeb work -> Finishing -> Quality check -> Ready ->
+     Dispatched -> Delivered
+
+    - Are these your real stages? Correct them.
+    - Do you want the CUSTOMER to see these, or only staff?
+      (Showing customers reduces "where is my order" messages enormously, but
+      it commits you to keeping it updated.)
+    - Would you photograph work in progress and send it? Diaspora customers
+      love this and it is a strong differentiator.
+
+    ANSWER:  ____________________________________________________________
+
+
+Q2.9 [IMPORTANT] REVIEWS - WHO CAN LEAVE ONE?
+
+  You want reviews. Decisions:
+    - Only verified buyers, or anyone? (Verified-only is far more
+      trustworthy and stops spam.)
+    - Do reviews need admin approval before appearing?
+    - Can customers upload PHOTOS of themselves wearing it? This is the single
+      most persuasive content for this kind of shop - but it needs moderation
+      and it costs storage.
+    - Can you reply publicly to reviews?
+
+    ANSWER:  ____________________________________________________________
+
+
+Q2.10 [IMPORTANT] THE MOBILE APP - HOW REAL IS IT?
+
+  "Mobile app" can mean three different things with very different costs:
+
+    (a) The website works beautifully on phones and can be "added to home
+        screen". FREE. Available the day we launch.
+    (b) A real app built from the same code, INSTALLED from the App Store and
+        Play Store. Requires: Apple Developer account ($99/year, ongoing),
+        Google Play account ($25 once), and Apple's review process which
+        rejects first submissions routinely.
+    (c) Both.
+
+  Which do you actually need, and are you willing to pay those fees? Also: do
+  you want push notifications? Those need extra setup and work differently on
+  the two platforms.
+
+    ANSWER:  ____________________________________________________________
+
+
+Q2.11 [IMPORTANT] THE THREE LANGUAGES
+
+  E1 says English for now. A6 says you read English, Amharic AND Tigrinya.
+
+  Tigrinya is new information - it wasn't in my original questions and it
+  matters, because adding a third language later is much cheaper if I build
+  for it from the start.
+
+    - Confirm: English only at launch?
+    - Which comes next, Amharic or Tigrinya, and roughly when?
+    - Is Tigrinya for customers, or just so YOUR STAFF can use the admin?
+      (Those are different jobs - staff-only is much cheaper.)
+
+  I will build the text system so languages can be added without touching
+  code, whatever you decide. That costs me a little now and saves weeks later.
+
+    ANSWER:  ____________________________________________________________
+
+
+================================================================================
+ SECTION 3 - LOWER PRIORITY
+ Say "your call" freely here.
+================================================================================
+
+Q3.1 [DEFAULT OK] YOUR PHOTOS CHANGED MY MIND ABOUT THE DESIGN
+
+  I proposed "heritage/traditional" earlier and you said (c), a blend. Having
+  now seen your actual photography - the off-shoulder dress against the
+  shutters, the gold-embroidered ballgown with the horses - I think I was
+  aiming too rustic.
+
+  Your product is not folk craft. It is COUTURE that happens to be Ethiopian.
+  The photography is editorial, high-end, aspirational. The site should match
+  that: generous white space, big images, restrained type, the clothes doing
+  all the talking. Closer to a fashion house than a craft market, with
+  Ethiopian pattern used sparingly as a signature rather than as decoration
+  everywhere.
+
+  Etsy, which you cited, is the opposite of this - Etsy is busy and
+  marketplace-like. I suspect you meant "Etsy's trust and clarity" rather
+  than "Etsy's visual style". Confirm which you meant?
+
+    ANSWER:  ____________________________________________________________
+
+
+Q3.2 [DEFAULT OK] CATEGORIES (B6 was blank)
+
+  My proposal, based on your photos:
+    - Bridal & Wedding (your gold ballgown belongs here - premium tier)
+    - Habesha Kemis (everyday and occasion dresses)
+    - Netela & Shash
+    - Gabi & Shemma
+    - Men's Traditional
+    - Children's Wear
+    - Accessories
+
+  You said admins can add and remove categories, which I'll build. Is this the
+  right starting set?
+
+    ANSWER:  ____________________________________________________________
+
+
+Q3.3 [DEFAULT OK] FILTERS (B7 was blank)
+
+  Proposed: category, price range, colour, fabric, embroidery style, occasion
+  (wedding/holiday/everyday), gender, age group, and lead time ("ready within
+  2 weeks") - that last one is useful when someone has an event coming up.
+
+    ANSWER:  ____________________________________________________________
+
+
+Q3.4 [DEFAULT OK] OWNER NOTIFICATIONS (E4 was blank)
+
+  Telegram alert to your phone on every new order, every completed payment,
+  and every measurement queued for verification. Free and instant. Yes?
+
+    ANSWER:  ____________________________________________________________
+
+
+Q3.5 [DEFAULT OK] DEADLINE (G1 was blank)
+
+  Is there a date you're working towards? A holiday season, an event, an
+  investor conversation? It changes what I build first.
+
+    ANSWER:  ____________________________________________________________
+
+
+Q3.6 [DEFAULT OK] WISHLIST
+
+  You said it's a nice feature. Confirm: launch, or phase 2? I'd put it at
+  launch - it's cheap and it helps customers who are deciding between designs.
+
+    ANSWER:  ____________________________________________________________
+
+
+Q3.7 [DEFAULT OK] WHAT ABOUT THE EXISTING PROTOTYPE?
+
+  There is a working prototype on the branch right now. Given how much the
+  business model changed, my plan is to keep the foundations (build setup,
+  image pipeline, payment module, security patterns, mobile wrapper) and
+  rewrite the business logic around designs and measurements.
+
+  That's roughly 40% reuse, 60% new. The alternative is starting completely
+  fresh, which I don't recommend - the foundations are sound and tested.
+
+  Any objection?
+
+    ANSWER:  ____________________________________________________________
+
+
+Q3.8 [DEFAULT OK] ANYTHING I STILL HAVEN'T ASKED?
+
+  You know this business and I don't. What would a competitor who has run an
+  Ethiopian clothing shop for ten years know that I clearly don't?
+
+  Specifically I'm wondering about: whether customers haggle, whether people
+  order for weddings in groups (bridesmaids all needing matching dresses -
+  that's a feature if so), whether there's a seasonal rush I should design
+  for, and what goes wrong most often with orders today.
+
+    ANSWER:  ____________________________________________________________
+             ____________________________________________________________
+             ____________________________________________________________
+
+
+================================================================================
+ WHAT HAPPENS WHEN YOU SEND THIS BACK
+================================================================================
+
+  1. You answer - at minimum the 14 BLOCKERS. Say "your call" anywhere else.
+  2. I come back with follow-ups on anything that opens new ground. There will
+     be some. Q1.7 (pay before or after verification) in particular tends to
+     raise three more questions once answered.
+  3. I write the data model in plain language. You sign off.
+  4. I build, milestone by milestone, showing you working software at each one.
+
+  The detailed build plan is in the separate file BUILD-PLAN.md - read that
+  alongside this. It assumes answers to everything above; where it makes an
+  assumption, it says so explicitly.
+
+================================================================================

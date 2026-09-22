@@ -1,5 +1,3 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
-
 // ---------------------------------------------------------------------------
 // Chapa integration primitives.
 //
@@ -12,6 +10,12 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 //
 // The logic is deliberately isolated here, with no network or database
 // access, so it can be unit-tested and corrected in one place.
+//
+// Crypto is WebCrypto rather than node:crypto, and there is no Buffer, so this
+// file runs unchanged on Vercel's Node runtime AND on Cloudflare Workers.
+// Having one verified implementation matters more than the small convenience
+// of the Node API: two copies of signature checking is two chances to get it
+// subtly wrong.
 // ---------------------------------------------------------------------------
 
 export const CHAPA_BASE_URL = 'https://api.chapa.co/v1';
@@ -37,19 +41,44 @@ export const SIGNATURE_HEADERS = ['x-chapa-signature', 'chapa-signature'] as con
  * Constant-time comparison of two hex digests.
  *
  * A plain `===` on a signature leaks, through timing, how many leading
- * characters were correct, which is enough to forge one byte at a time.
+ * characters matched, which is enough to forge a signature one byte at a time.
+ * This compares every character regardless of where the first difference is.
+ *
+ * The length check leaks only the length, which for a fixed-size digest tells
+ * an attacker nothing they did not already know.
  */
 function safeEqualHex(a: string, b: string): boolean {
-  const bufA = Buffer.from(a, 'hex');
-  const bufB = Buffer.from(b, 'hex');
-  // timingSafeEqual throws on a length mismatch, so that case is handled
-  // first — and a wrong length is a wrong signature anyway.
-  if (bufA.length === 0 || bufA.length !== bufB.length) return false;
-  return timingSafeEqual(bufA, bufB);
+  if (a.length === 0 || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
 }
 
-export function computeSignature(rawBody: string, secret: string): string {
-  return createHmac('sha256', secret).update(rawBody, 'utf8').digest('hex');
+function toHex(buffer: ArrayBuffer): string {
+  return Array.from(new Uint8Array(buffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
+ * HMAC-SHA256 of the raw body, as a lowercase hex digest.
+ *
+ * Async because WebCrypto is. That ripples out to the verify function and its
+ * callers, which is a small price for running on both platforms.
+ */
+export async function computeSignature(rawBody: string, secret: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(rawBody));
+  return toHex(signature);
 }
 
 /**
@@ -60,14 +89,14 @@ export function computeSignature(rawBody: string, secret: string): string {
  * which fails every legitimate webhook. This is the single most common way to
  * break a webhook integration.
  */
-export function verifyWebhookSignature(
+export async function verifyWebhookSignature(
   rawBody: string,
   headers: Record<string, string | string[] | undefined>,
   secret: string,
-): { valid: boolean; reason?: string } {
+): Promise<{ valid: boolean; reason?: string }> {
   if (!secret) return { valid: false, reason: 'No webhook secret configured' };
 
-  const expected = computeSignature(rawBody, secret);
+  const expected = await computeSignature(rawBody, secret);
 
   for (const name of SIGNATURE_HEADERS) {
     const raw = headers[name] ?? headers[name.toLowerCase()];
