@@ -1,43 +1,34 @@
 import { createHashRouter } from 'react-router-dom';
-import { lazy, Suspense } from 'react';
-import StorefrontLayout from './components/StorefrontLayout';
+import { lazy, Suspense, type ReactNode } from 'react';
+import Layout from './components/Layout';
 import ErrorPage from './pages/ErrorPage';
 import Home from './pages/Home';
 import PageSpinner from './components/PageSpinner';
 
-// Hash routing, chosen for Capacitor: inside the native app the bundle is
-// loaded from the device filesystem, where there is no server to map deep
-// paths back to index.html. Hash URLs work identically on the web and in the
-// app, which keeps one router for both.
-const Catalogue = lazy(() => import('./pages/Catalogue'));
-const ProductPage = lazy(() => import('./pages/ProductPage'));
-const Cart = lazy(() => import('./pages/Cart'));
-const Checkout = lazy(() => import('./pages/Checkout'));
-const OrderConfirmation = lazy(() => import('./pages/OrderConfirmation'));
-const TrackOrder = lazy(() => import('./pages/TrackOrder'));
-const SizeGuide = lazy(() => import('./pages/SizeGuide'));
-const AdminApp = lazy(() => import('./pages/admin/AdminApp'));
+// Hash routing, chosen for Capacitor: inside the native app the bundle loads
+// from the device filesystem, where there is no server to map deep paths back
+// to index.html. Clean URLs still work on the web — see index.html, which
+// redirects them into the hash route, and api/og.ts, which serves link
+// previews at the same clean paths.
+const Shop = lazy(() => import('./pages/Shop'));
+const DesignPage = lazy(() => import('./pages/DesignPage'));
+const HowToMeasure = lazy(() => import('./pages/HowToMeasure'));
 
-const lazyRoute = (element: React.ReactNode) => (
+const lazily = (element: ReactNode) => (
   <Suspense fallback={<PageSpinner />}>{element}</Suspense>
 );
 
 export const router = createHashRouter([
   {
     path: '/',
-    element: <StorefrontLayout />,
+    element: <Layout />,
     errorElement: <ErrorPage />,
     children: [
       { index: true, element: <Home /> },
-      { path: 'shop', element: lazyRoute(<Catalogue />) },
-      { path: 'shop/:categorySlug', element: lazyRoute(<Catalogue />) },
-      { path: 'product/:slug', element: lazyRoute(<ProductPage />) },
-      { path: 'cart', element: lazyRoute(<Cart />) },
-      { path: 'checkout', element: lazyRoute(<Checkout />) },
-      { path: 'order/:reference', element: lazyRoute(<OrderConfirmation />) },
-      { path: 'track', element: lazyRoute(<TrackOrder />) },
-      { path: 'size-guide', element: lazyRoute(<SizeGuide />) },
+      { path: 'shop', element: lazily(<Shop />) },
+      { path: 'shop/:categorySlug', element: lazily(<Shop />) },
+      { path: 'design/:slug', element: lazily(<DesignPage />) },
+      { path: 'how-to-measure', element: lazily(<HowToMeasure />) },
     ],
   },
-  { path: '/admin/*', element: lazyRoute(<AdminApp />), errorElement: <ErrorPage /> },
 ]);

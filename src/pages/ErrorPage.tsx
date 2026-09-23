@@ -1,4 +1,5 @@
 import { Link, useRouteError } from 'react-router-dom';
+import { translate } from '../i18n';
 
 /**
  * Non-technical people see this page, so it says what happened and what to do.
@@ -10,18 +11,17 @@ export default function ErrorPage() {
   console.error(error);
 
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center">
-      <div className="tibeb-band w-40" aria-hidden />
-      <h1 className="mt-8 text-3xl">Something went wrong on our side</h1>
-      <p className="mt-3 max-w-md text-sm leading-relaxed text-ink-500">
-        This page could not be loaded. It is not something you did. Try again in a
-        moment, or go back to the collection.
+    <div className="flex min-h-[70vh] flex-col items-center justify-center px-6 text-center">
+      <div className="tibeb-rule w-32" aria-hidden />
+      <h1 className="mt-10 text-display-sm">{translate('en', 'common.somethingWentWrong')}</h1>
+      <p className="mt-4 max-w-prose text-sm leading-relaxed text-ink-400">
+        {translate('en', 'common.somethingWentWrongBody')}
       </p>
-      <div className="mt-8 flex gap-3">
+      <div className="mt-10 flex gap-3">
         <button type="button" onClick={() => window.location.reload()} className="btn-primary">
-          Try again
+          {translate('en', 'common.tryAgain')}
         </button>
-        <Link to="/" className="btn-secondary">Back to the shop</Link>
+        <Link to="/" className="btn-secondary">{translate('en', 'nav.collection')}</Link>
       </div>
     </div>
   );

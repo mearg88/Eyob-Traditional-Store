@@ -3,29 +3,28 @@ import { X } from 'lucide-react';
 import { isDemoMode } from '../lib/data';
 
 /**
- * Shown only when no Supabase keys are configured. It exists so nobody —
- * least of all the shop owner during a demo — mistakes seeded sample data
- * and simulated payments for the real thing.
+ * Shown only when no Supabase keys are configured, so that nobody — least of
+ * all the shop owner during a demonstration — mistakes seeded sample data for
+ * the real thing.
  */
 export default function DemoBanner() {
   const [dismissed, setDismissed] = useState(false);
   if (!isDemoMode || dismissed) return null;
 
   return (
-    <div className="bg-forest-700 px-4 py-2 text-center text-xs text-cotton-100">
+    <div className="bg-ink-900 px-5 py-2 text-center text-[11px] text-bone-200">
       <div className="mx-auto flex max-w-content items-center justify-center gap-3">
         <span>
-          <strong className="font-semibold">Demo mode</strong>
-          {' — sample catalogue, placeholder photography, and simulated payments. '}
-          <span className="hidden sm:inline">No card is ever charged.</span>
+          <strong className="font-semibold text-bone-50">Demo</strong>
+          {' — sample catalogue and placeholder prices. No payment is taken.'}
         </span>
         <button
           type="button"
           onClick={() => setDismissed(true)}
-          className="shrink-0 rounded p-1 hover:bg-cotton-100/10"
-          aria-label="Dismiss demo notice"
+          className="shrink-0 rounded p-1 hover:bg-bone-50/10"
+          aria-label="Dismiss"
         >
-          <X size={14} />
+          <X size={13} />
         </button>
       </div>
     </div>

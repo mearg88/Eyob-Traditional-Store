@@ -4,9 +4,9 @@ import { MockAdapter } from './mock';
 // ---------------------------------------------------------------------------
 // Adapter selection.
 //
-// With Supabase keys present the app talks to the real database. Without them
-// it runs the demo adapter. That is the whole switch — no build flags, no
-// separate entry point, so the demo exercises the same components production
+// With Supabase keys present the app uses the real database; without them it
+// runs the demo adapter. That is the whole switch — no build flags and no
+// separate entry point, so demo mode exercises the same components production
 // does rather than a parallel mock UI that can drift.
 // ---------------------------------------------------------------------------
 
@@ -28,9 +28,13 @@ export async function getData(): Promise<DataAdapter> {
       created = new MockAdapter();
     } else {
       // Loaded lazily so the Supabase client stays out of the bundle that
-      // demo-mode visitors download.
-      const { SupabaseAdapter } = await import('./supabase');
-      created = new SupabaseAdapter(url!, anonKey!);
+      // demo-mode visitors download. Written in M2, alongside authentication;
+      // until then, configuring Supabase keys is not yet supported and we say
+      // so rather than failing obscurely at runtime.
+      throw new Error(
+        'Supabase support is not wired up yet. Remove VITE_SUPABASE_URL and '
+        + 'VITE_SUPABASE_ANON_KEY to run in demo mode.',
+      );
     }
     adapter = created;
     return created;
@@ -39,4 +43,4 @@ export async function getData(): Promise<DataAdapter> {
   return loading;
 }
 
-export type { DataAdapter, ProductFilters, CreateOrderInput } from './adapter';
+export type { DataAdapter, DesignFilters } from './adapter';

@@ -1,52 +1,48 @@
 import type {
-  Category, Order, OrderStatus, Payment, Product, ProductPrice, PromoCode,
-  ShippingRate, ShippingZone, StoreSettings,
+  Category, CountryGroup, Design, DesignOption, DesignPrice, ExchangeRate,
+  MeasurementSet, StoreSettings,
 } from '../types';
-import { findPrice } from '../pricing';
-import type {
-  CreateOrderInput, DataAdapter, ProductFilters, ReservationResult,
-} from './adapter';
+import type { DataAdapter, DesignFilters } from './adapter';
 import {
-  SEED_CATEGORIES, SEED_ORDERS, SEED_PRICES, SEED_PRODUCTS, SEED_PROMOS,
-  SEED_RATES, SEED_REVIEWS, SEED_SETTINGS, SEED_ZONES,
+  SEED_CATEGORIES, SEED_COUNTRY_GROUPS, SEED_DESIGNS, SEED_OPTIONS,
+  SEED_PRICES, SEED_RATES, SEED_REVIEWS, SEED_SETTINGS,
 } from './seed';
 
 // ---------------------------------------------------------------------------
 // Demo adapter.
 //
-// Everything lives in memory, with orders and edits mirrored to localStorage
-// so a demo survives a page refresh. No network, no accounts, no keys.
+// Everything in memory, mirrored to localStorage so a demonstration survives a
+// page refresh. No network, no accounts, no keys.
 //
-// It is not a toy: it enforces the same reservation rules as the real thing,
-// including refusing to sell a one-of-a-kind piece twice. If the demo can be
-// made to double-sell, so could production.
+// It is not a toy: it runs the same code paths the real adapter does, so
+// anything that works here works there. The one thing it cannot simulate is
+// Row Level Security, which is why the security rules live in the database
+// rather than in either adapter.
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = 'ets.demo.v1';
+const STORAGE_KEY = 'ets.demo.v2';
 
 interface Persisted {
-  products: Product[];
-  prices: ProductPrice[];
+  designs: Design[];
+  prices: DesignPrice[];
+  options: DesignOption[];
   categories: Category[];
-  orders: Order[];
-  payments: Payment[];
-  zones: ShippingZone[];
-  rates: ShippingRate[];
-  promos: PromoCode[];
+  countryGroups: CountryGroup[];
+  rates: ExchangeRate[];
   settings: StoreSettings;
+  measurementSets: MeasurementSet[];
 }
 
 function fresh(): Persisted {
   return {
-    products: structuredClone(SEED_PRODUCTS),
+    designs: structuredClone(SEED_DESIGNS),
     prices: structuredClone(SEED_PRICES),
+    options: structuredClone(SEED_OPTIONS),
     categories: structuredClone(SEED_CATEGORIES),
-    orders: structuredClone(SEED_ORDERS),
-    payments: [],
-    zones: structuredClone(SEED_ZONES),
+    countryGroups: structuredClone(SEED_COUNTRY_GROUPS),
     rates: structuredClone(SEED_RATES),
-    promos: structuredClone(SEED_PROMOS),
     settings: structuredClone(SEED_SETTINGS),
+    measurementSets: [],
   };
 }
 
@@ -55,10 +51,9 @@ function load(): Persisted {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return fresh();
-    const parsed = JSON.parse(raw) as Partial<Persisted>;
-    // Merge over a fresh seed so a stored snapshot from an older build cannot
-    // leave newly added fields undefined.
-    return { ...fresh(), ...parsed };
+    // Merged over a fresh seed so a snapshot from an older build cannot leave
+    // newly added fields undefined.
+    return { ...fresh(), ...(JSON.parse(raw) as Partial<Persisted>) };
   } catch {
     return fresh();
   }
@@ -71,7 +66,7 @@ function save(): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
   } catch {
-    // Private browsing or a full quota. The demo keeps working in memory.
+    // Private browsing or a full quota. The demo carries on in memory.
   }
 }
 
@@ -80,38 +75,32 @@ export function resetDemoData(): void {
   save();
 }
 
+/** A small delay so loading states are exercised rather than skipped. */
 const delay = <T>(value: T): Promise<T> =>
-  new Promise((resolve) => setTimeout(() => resolve(value), 60));
+  new Promise((resolve) => setTimeout(() => resolve(value), 50));
 
-function reference(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let out = '';
-  for (let i = 0; i < 6; i += 1) out += chars[Math.floor(Math.random() * chars.length)];
-  return `ETS-${out}`;
-}
+function matches(design: Design, filters: DesignFilters, categories: Category[]): boolean {
+  if (!filters.includeUnpublished && design.status !== 'published') return false;
+  if (filters.gender && design.gender !== filters.gender) return false;
+  if (filters.occasion && !design.occasion.includes(filters.occasion)) return false;
+  if (filters.colour && !design.colour.toLowerCase().includes(filters.colour.toLowerCase())) return false;
+  if (filters.fabric && !design.fabric.toLowerCase().includes(filters.fabric.toLowerCase())) return false;
+  if (filters.maxProductionDays && design.productionDays > filters.maxProductionDays) return false;
 
-function matchesFilters(p: Product, f: ProductFilters, prices: ProductPrice[]): boolean {
-  if (!f.includeSold && (p.status === 'archived' || p.status === 'sold')) return false;
-  if (f.gender && p.gender !== f.gender) return false;
-  if (f.kind && p.kind !== f.kind) return false;
-  if (f.occasion && !p.occasion.includes(f.occasion)) return false;
-  if (f.colour && !p.colour.toLowerCase().includes(f.colour.toLowerCase())) return false;
-  if (f.fabric && !p.fabric.toLowerCase().includes(f.fabric.toLowerCase())) return false;
+  if (filters.categorySlug) {
+    const category = categories.find((c) => c.slug === filters.categorySlug);
+    if (!category || design.categoryId !== category.id) return false;
+  }
 
-  if (f.search) {
-    const q = f.search.toLowerCase();
-    const haystack = [p.name, p.description, p.fabric, p.colour, p.tibebPattern, ...p.occasion]
-      .join(' ')
-      .toLowerCase();
+  if (filters.search) {
+    const q = filters.search.toLowerCase();
+    const haystack = [
+      design.name, design.description, design.fabric, design.colour,
+      design.embroidery, ...design.occasion,
+    ].join(' ').toLowerCase();
     if (!haystack.includes(q)) return false;
   }
 
-  if ((f.minAmount !== undefined || f.maxAmount !== undefined) && f.currency && f.tier) {
-    const amount = findPrice(prices, p.id, f.currency, f.tier);
-    if (amount === null) return false;
-    if (f.minAmount !== undefined && amount < f.minAmount) return false;
-    if (f.maxAmount !== undefined && amount > f.maxAmount) return false;
-  }
   return true;
 }
 
@@ -122,254 +111,110 @@ export class MockAdapter implements DataAdapter {
     return delay([...db.categories].sort((a, b) => a.position - b.position));
   }
 
-  async listProducts(filters: ProductFilters = {}) {
-    const categoryId = filters.categorySlug
-      ? db.categories.find((c) => c.slug === filters.categorySlug)?.id
-      : undefined;
+  async listDesigns(filters: DesignFilters = {}) {
+    let out = db.designs.filter((d) => matches(d, filters, db.categories));
 
-    let out = db.products.filter(
-      (p) =>
-        (!categoryId || p.categoryId === categoryId) &&
-        matchesFilters(p, filters, db.prices),
-    );
-
-    const { currency, tier, sort } = filters;
-    if (sort === 'price_asc' || sort === 'price_desc') {
-      const dir = sort === 'price_asc' ? 1 : -1;
-      const priceOf = (p: Product) =>
-        currency && tier ? findPrice(db.prices, p.id, currency, tier) ?? Number.MAX_SAFE_INTEGER : 0;
-      out = [...out].sort((a, b) => (priceOf(a) - priceOf(b)) * dir);
-    } else if (sort === 'name') {
-      out = [...out].sort((a, b) => a.name.localeCompare(b.name));
-    } else {
-      out = [...out].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    switch (filters.sort) {
+      case 'name':
+        out = [...out].sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case 'soonest':
+        out = [...out].sort((a, b) => a.productionDays - b.productionDays);
+        break;
+      case 'price_asc':
+      case 'price_desc': {
+        const dir = filters.sort === 'price_asc' ? 1 : -1;
+        const priceOf = (d: Design) =>
+          db.prices.find((p) => p.designId === d.id && p.tier === 'international')?.amount
+          ?? Number.MAX_SAFE_INTEGER;
+        out = [...out].sort((a, b) => (priceOf(a) - priceOf(b)) * dir);
+        break;
+      }
+      default:
+        out = [...out].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     }
+
     return delay(out);
   }
 
-  async getProductBySlug(slug: string) {
-    return delay(db.products.find((p) => p.slug === slug) ?? null);
+  async getDesignBySlug(slug: string) {
+    return delay(db.designs.find((d) => d.slug === slug) ?? null);
   }
 
-  async getProductsByIds(ids: string[]) {
-    return delay(db.products.filter((p) => ids.includes(p.id)));
+  async getDesignsByIds(ids: string[]) {
+    return delay(db.designs.filter((d) => ids.includes(d.id)));
   }
 
-  async listPrices(productIds?: string[]) {
+  async listPrices(designIds?: string[]) {
     return delay(
-      productIds ? db.prices.filter((p) => productIds.includes(p.productId)) : db.prices,
+      designIds ? db.prices.filter((p) => designIds.includes(p.designId)) : db.prices,
     );
   }
 
-  async listZones() {
-    return delay([...db.zones].sort((a, b) => a.position - b.position));
+  async listOptions(designId: string) {
+    return delay(
+      db.options
+        .filter((o) => o.designId === designId)
+        .sort((a, b) => a.position - b.position),
+    );
   }
 
-  async listRates() {
+  async listCountryGroups() {
+    return delay([...db.countryGroups].sort((a, b) => a.position - b.position));
+  }
+
+  async listExchangeRates() {
     return delay([...db.rates]);
-  }
-
-  async listReviews(productId: string) {
-    return delay(SEED_REVIEWS.filter((r) => r.productId === productId && r.approved));
   }
 
   async getSettings() {
     return delay(db.settings);
   }
 
-  async findPromo(code: string) {
-    const promo = db.promos.find(
-      (p) => p.code.toLowerCase() === code.trim().toLowerCase() && p.active,
-    );
-    if (!promo) return delay(null);
-    if (promo.expiresAt && new Date(promo.expiresAt) < new Date()) return delay(null);
-    if (promo.maxRedemptions && promo.timesRedeemed >= promo.maxRedemptions) return delay(null);
-    return delay(promo);
+  async listReviews(designId: string) {
+    return delay(SEED_REVIEWS.filter((r) => r.designId === designId && r.approved));
   }
 
-  /**
-   * The one-of-a-kind race, handled the same way the database does it: check
-   * and flip in a single pass with no await in the middle, so two concurrent
-   * callers cannot both observe 'available'.
-   */
-  async reserveProducts(productIds: string[]): Promise<ReservationResult> {
-    const unavailable: string[] = [];
-    const toReserve: Product[] = [];
+  async listMeasurementSets(customerId: string) {
+    return delay(db.measurementSets.filter((m) => m.customerId === customerId));
+  }
 
-    for (const id of productIds) {
-      const product = db.products.find((p) => p.id === id);
-      if (!product) {
-        unavailable.push(id);
-        continue;
-      }
-      if (product.kind === 'made_to_order') continue;
-      if (product.status !== 'available') {
-        unavailable.push(id);
-        continue;
-      }
-      toReserve.push(product);
-    }
-
-    if (unavailable.length > 0) return delay({ ok: false, unavailableProductIds: unavailable });
-
-    for (const product of toReserve) product.status = 'reserved';
+  async saveMeasurementSet(set: MeasurementSet) {
+    const idx = db.measurementSets.findIndex((m) => m.id === set.id);
+    if (idx >= 0) db.measurementSets[idx] = set;
+    else db.measurementSets.push(set);
     save();
-    return delay({ ok: true, unavailableProductIds: [] });
+    return delay(set);
   }
 
-  async releaseProducts(productIds: string[]) {
-    for (const id of productIds) {
-      const product = db.products.find((p) => p.id === id);
-      if (product && product.status === 'reserved') product.status = 'available';
-    }
+  async deleteMeasurementSet(id: string) {
+    db.measurementSets = db.measurementSets.filter((m) => m.id !== id);
     save();
     return delay(undefined);
   }
 
-  async createOrder(input: CreateOrderInput) {
-    const now = new Date().toISOString();
-    const products = db.products.filter((p) => input.items.some((i) => i.productId === p.id));
+  async adminListDesigns() {
+    return delay([...db.designs].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+  }
 
-    const items = input.items.map((item, idx) => {
-      const product = products.find((p) => p.id === item.productId)!;
-      const unitAmount = findPrice(db.prices, product.id, input.currency, input.tier) ?? 0;
-      return {
-        id: `oi-${Date.now()}-${idx}`,
-        productId: product.id,
-        productName: product.name,
-        productSlug: product.slug,
-        imageKey: product.images[0]?.key,
-        kind: product.kind,
-        quantity: item.quantity,
-        unitAmount,
-        customerMeasurements: item.customerMeasurements,
-      };
-    });
+  async adminSaveDesign(design: Design, prices: DesignPrice[], options: DesignOption[]) {
+    const next = { ...design, updatedAt: new Date().toISOString() };
+    const idx = db.designs.findIndex((d) => d.id === next.id);
+    if (idx >= 0) db.designs[idx] = next;
+    else db.designs.unshift(next);
 
-    const subtotal = items.reduce((sum, i) => sum + i.unitAmount * i.quantity, 0);
-
-    let discount = 0;
-    if (input.promoCode) {
-      const promo = await this.findPromo(input.promoCode);
-      if (promo) {
-        discount =
-          promo.kind === 'percentage'
-            ? Math.round((subtotal * promo.value) / 100)
-            : promo.currency === input.currency
-              ? Math.min(promo.value, subtotal)
-              : 0;
-      }
-    }
-
-    const order: Order = {
-      id: `ord-${Date.now()}`,
-      reference: reference(),
-      email: input.email,
-      phone: input.phone,
-      status: 'pending_payment',
-      currency: input.currency,
-      tier: input.tier,
-      items: items as Order['items'],
-      subtotalAmount: subtotal,
-      shippingAmount: input.shippingAmount,
-      discountAmount: discount,
-      totalAmount: Math.max(0, subtotal - discount) + input.shippingAmount,
-      promoCode: input.promoCode,
-      shippingAddress: input.shippingAddress,
-      shippingRateId: input.shippingRateId,
-      notes: input.notes,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    const payment: Payment = {
-      id: `pay-${Date.now()}`,
-      orderId: order.id,
-      txRef: `${order.reference}-${Date.now().toString(36)}`,
-      provider: 'mock',
-      status: 'pending',
-      amount: order.totalAmount,
-      currency: order.currency,
-      createdAt: now,
-    };
-
-    db.orders.unshift(order);
-    db.payments.unshift(payment);
+    db.prices = db.prices.filter((p) => p.designId !== next.id).concat(prices);
+    db.options = db.options.filter((o) => o.designId !== next.id).concat(options);
     save();
-    return delay({ order, payment });
+    return delay(next);
   }
 
-  async getOrderByReference(ref: string, email: string) {
-    const order = db.orders.find(
-      (o) =>
-        o.reference.toLowerCase() === ref.trim().toLowerCase() &&
-        o.email.toLowerCase() === email.trim().toLowerCase(),
-    );
-    return delay(order ?? null);
-  }
-
-  async listOrdersForEmail(email: string) {
-    return delay(db.orders.filter((o) => o.email.toLowerCase() === email.trim().toLowerCase()));
-  }
-
-  async adminListOrders(status?: OrderStatus) {
-    return delay(status ? db.orders.filter((o) => o.status === status) : [...db.orders]);
-  }
-
-  async adminGetOrder(id: string) {
-    return delay(db.orders.find((o) => o.id === id) ?? null);
-  }
-
-  async adminUpdateOrderStatus(
-    id: string,
-    status: OrderStatus,
-    extra?: { trackingNumber?: string; trackingCarrier?: string },
-  ) {
-    const order = db.orders.find((o) => o.id === id);
-    if (!order) throw new Error('Order not found');
-    order.status = status;
-    order.updatedAt = new Date().toISOString();
-    if (extra?.trackingNumber !== undefined) order.trackingNumber = extra.trackingNumber;
-    if (extra?.trackingCarrier !== undefined) order.trackingCarrier = extra.trackingCarrier;
-
-    // Selling a one-of-a-kind piece takes it off the shelf for good; cancelling
-    // puts it back.
-    if (status === 'paid' || status === 'shipped' || status === 'delivered') {
-      for (const item of order.items) {
-        const product = db.products.find((p) => p.id === item.productId);
-        if (product && product.kind === 'one_of_a_kind') product.status = 'sold';
-      }
+  async adminArchiveDesign(id: string) {
+    const design = db.designs.find((d) => d.id === id);
+    if (design) {
+      design.status = 'archived';
+      design.updatedAt = new Date().toISOString();
     }
-    if (status === 'cancelled') {
-      for (const item of order.items) {
-        const product = db.products.find((p) => p.id === item.productId);
-        if (product && product.kind === 'one_of_a_kind' && product.status !== 'sold') {
-          product.status = 'available';
-        }
-      }
-    }
-    save();
-    return delay(order);
-  }
-
-  async adminListProducts() {
-    return delay([...db.products].sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
-  }
-
-  async adminSaveProduct(product: Product, prices: ProductPrice[]) {
-    const idx = db.products.findIndex((p) => p.id === product.id);
-    if (idx >= 0) db.products[idx] = product;
-    else db.products.unshift(product);
-
-    db.prices = db.prices.filter((p) => p.productId !== product.id);
-    db.prices.push(...prices);
-    save();
-    return delay(product);
-  }
-
-  async adminArchiveProduct(id: string) {
-    const product = db.products.find((p) => p.id === id);
-    if (product) product.status = 'archived';
     save();
     return delay(undefined);
   }
@@ -382,38 +227,20 @@ export class MockAdapter implements DataAdapter {
     return delay(category);
   }
 
-  async adminSaveZone(zone: ShippingZone) {
-    const idx = db.zones.findIndex((z) => z.id === zone.id);
-    if (idx >= 0) db.zones[idx] = zone;
-    else db.zones.push(zone);
-    save();
-    return delay(zone);
-  }
-
-  async adminSaveRate(rate: ShippingRate) {
-    const idx = db.rates.findIndex((r) => r.id === rate.id);
-    if (idx >= 0) db.rates[idx] = rate;
-    else db.rates.push(rate);
-    save();
-    return delay(rate);
-  }
-
-  async adminDeleteRate(id: string) {
-    db.rates = db.rates.filter((r) => r.id !== id);
+  async adminDeleteCategory(id: string) {
+    // Designs keep their categoryId so nothing is silently orphaned; the
+    // admin surfaces them as needing a category.
+    db.categories = db.categories.filter((c) => c.id !== id);
     save();
     return delay(undefined);
   }
 
-  async adminListPromos() {
-    return delay([...db.promos]);
-  }
-
-  async adminSavePromo(promo: PromoCode) {
-    const idx = db.promos.findIndex((p) => p.id === promo.id);
-    if (idx >= 0) db.promos[idx] = promo;
-    else db.promos.push(promo);
+  async adminSaveCountryGroup(group: CountryGroup) {
+    const idx = db.countryGroups.findIndex((g) => g.id === group.id);
+    if (idx >= 0) db.countryGroups[idx] = group;
+    else db.countryGroups.push(group);
     save();
-    return delay(promo);
+    return delay(group);
   }
 
   async adminSaveSettings(settings: StoreSettings) {
@@ -422,22 +249,10 @@ export class MockAdapter implements DataAdapter {
     return delay(settings);
   }
 
-  async adminListPayments(orderId: string) {
-    return delay(db.payments.filter((p) => p.orderId === orderId));
-  }
-
-  /** Demo-only: lets the mock checkout mark a payment paid. */
-  async _markPaid(txRef: string): Promise<Order | null> {
-    const payment = db.payments.find((p) => p.txRef === txRef);
-    if (!payment) return null;
-    payment.status = 'paid';
-    payment.paidAt = new Date().toISOString();
-    const order = db.orders.find((o) => o.id === payment.orderId);
-    if (order) {
-      const madeToOrder = order.items.some((i) => i.kind === 'made_to_order');
-      await this.adminUpdateOrderStatus(order.id, madeToOrder ? 'in_production' : 'paid', undefined);
-    }
+  async adminRefreshRates() {
+    // Demo mode has no network. Real refresh lives in the rates function.
+    db.rates = db.rates.map((r) => ({ ...r, fetchedAt: new Date().toISOString() }));
     save();
-    return order ?? null;
+    return delay(db.rates);
   }
 }

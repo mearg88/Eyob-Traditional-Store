@@ -63,7 +63,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const rawBody = await readRawBody(req);
 
-  const verification = verifyWebhookSignature(rawBody, req.headers, webhookSecret);
+  const verification = await verifyWebhookSignature(rawBody, req.headers, webhookSecret);
   if (!verification.valid) {
     // 401 and no detail. An attacker probing this endpoint learns nothing
     // about why their forgery failed.

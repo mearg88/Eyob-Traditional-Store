@@ -1,112 +1,137 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { CartLine, CurrencyCode, Measurements } from './types';
+import type { CartLine, CurrencyCode, MeasurementUnit } from './types';
 import { guessCurrencyForCountry } from './pricing';
 
 // ---------------------------------------------------------------------------
-// Client state: the cart, the display currency, and the measurement unit.
+// Client state: the basket, the displayed currency, and the measurement unit.
 //
-// The cart persists to localStorage so a customer who closes the tab on a
-// slow phone comes back to their basket. Note what is NOT stored here: no
-// prices and no totals. Those are recomputed from the catalogue on every
-// render and again on the server at checkout, so a tampered localStorage
-// entry cannot change what anyone is charged.
+// Note what is NOT stored here: no prices and no totals. Those are recomputed
+// from the catalogue on every render, and again on the server at checkout, so
+// editing localStorage cannot change what anyone is charged.
+//
+// The detected country is kept because it seeds the currency guess, but it is
+// explicitly a DISPLAY hint. The price tier comes from the delivery address at
+// checkout — see pricing.ts.
 // ---------------------------------------------------------------------------
 
-interface CartState {
+interface StoreState {
   lines: CartLine[];
   currency: CurrencyCode;
-  /** Set once from the browser locale, then only ever by the user. */
-  currencyTouched: boolean;
-  unit: 'cm' | 'in';
-  promoCode: string | null;
+  /** False until the visitor chooses for themselves; then we stop guessing. */
+  currencyChosenByUser: boolean;
+  unit: MeasurementUnit;
+  /** From the hosting platform's geo header, for the currency guess only. */
+  detectedCountry: string | null;
 
-  add(productId: string, measurements?: Measurements): void;
-  remove(productId: string): void;
-  setMeasurements(productId: string, measurements: Measurements): void;
+  add(line: CartLine): void;
+  remove(designId: string): void;
+  updateLine(designId: string, patch: Partial<CartLine>): void;
   clear(): void;
+
   setCurrency(currency: CurrencyCode): void;
-  setUnit(unit: 'cm' | 'in'): void;
-  setPromoCode(code: string | null): void;
+  setDetectedCountry(country: string): void;
+  setUnit(unit: MeasurementUnit): void;
+
   count(): number;
-  has(productId: string): boolean;
+  has(designId: string): boolean;
 }
 
-/** Best-effort guess from the browser locale. Display only — never pricing. */
 function initialCurrency(): CurrencyCode {
   if (typeof navigator === 'undefined') return 'USD';
-  const region = new Intl.Locale(navigator.language || 'en-US').maximize().region;
-  return guessCurrencyForCountry(region ?? undefined);
+  try {
+    const region = new Intl.Locale(navigator.language || 'en-US').maximize().region;
+    return guessCurrencyForCountry(region);
+  } catch {
+    return 'USD';
+  }
 }
 
-/** Imperial-speaking markets get inches by default; everyone else cm. */
-function initialUnit(): 'cm' | 'in' {
+/** Imperial-speaking markets get inches; everyone else centimetres. */
+function initialUnit(): MeasurementUnit {
   if (typeof navigator === 'undefined') return 'cm';
-  const region = new Intl.Locale(navigator.language || 'en-US').maximize().region;
-  return region === 'US' || region === 'GB' ? 'in' : 'cm';
+  try {
+    const region = new Intl.Locale(navigator.language || 'en-US').maximize().region;
+    return region === 'US' ? 'in' : 'cm';
+  } catch {
+    return 'cm';
+  }
 }
 
-export const useStore = create<CartState>()(
+export const useStore = create<StoreState>()(
   persist(
     (set, get) => ({
       lines: [],
       currency: initialCurrency(),
-      currencyTouched: false,
+      currencyChosenByUser: false,
       unit: initialUnit(),
-      promoCode: null,
+      detectedCountry: null,
 
-      add(productId, measurements) {
+      add(line) {
         const { lines } = get();
-        // Every ready-made piece is one of a kind, so quantity never exceeds
-        // one. Adding twice is a no-op rather than an error.
-        if (lines.some((l) => l.productId === productId)) return;
-        set({ lines: [...lines, { productId, quantity: 1, customerMeasurements: measurements }] });
+        // Each basket line is one garment made to one set of measurements, so
+        // the same design can legitimately appear twice with different
+        // measurements — for a mother and daughter, say. Lines are therefore
+        // keyed by design plus measurement set, not by design alone.
+        const existing = lines.findIndex(
+          (l) => l.designId === line.designId && l.measurementSetId === line.measurementSetId,
+        );
+        if (existing >= 0) {
+          const next = [...lines];
+          next[existing] = { ...next[existing], quantity: next[existing].quantity + 1 };
+          set({ lines: next });
+          return;
+        }
+        set({ lines: [...lines, line] });
       },
 
-      remove(productId) {
-        set({ lines: get().lines.filter((l) => l.productId !== productId) });
+      remove(designId) {
+        set({ lines: get().lines.filter((l) => l.designId !== designId) });
       },
 
-      setMeasurements(productId, measurements) {
+      updateLine(designId, patch) {
         set({
-          lines: get().lines.map((l) =>
-            l.productId === productId ? { ...l, customerMeasurements: measurements } : l,
-          ),
+          lines: get().lines.map((l) => (l.designId === designId ? { ...l, ...patch } : l)),
         });
       },
 
       clear() {
-        set({ lines: [], promoCode: null });
+        set({ lines: [] });
       },
 
       setCurrency(currency) {
-        set({ currency, currencyTouched: true });
+        set({ currency, currencyChosenByUser: true });
+      },
+
+      setDetectedCountry(country) {
+        const { currencyChosenByUser } = get();
+        set({
+          detectedCountry: country,
+          // Only override the currency while the visitor has not chosen one.
+          ...(currencyChosenByUser ? {} : { currency: guessCurrencyForCountry(country) }),
+        });
       },
 
       setUnit(unit) {
         set({ unit });
       },
 
-      setPromoCode(promoCode) {
-        set({ promoCode });
-      },
-
       count() {
-        return get().lines.length;
+        return get().lines.reduce((sum, l) => sum + l.quantity, 0);
       },
 
-      has(productId) {
-        return get().lines.some((l) => l.productId === productId);
+      has(designId) {
+        return get().lines.some((l) => l.designId === designId);
       },
     }),
     {
-      name: 'ets.cart.v1',
+      name: 'ets.cart.v2',
       partialize: (s) => ({
         lines: s.lines,
         currency: s.currency,
-        currencyTouched: s.currencyTouched,
+        currencyChosenByUser: s.currencyChosenByUser,
         unit: s.unit,
-        promoCode: s.promoCode,
+        detectedCountry: s.detectedCountry,
       }),
     },
   ),

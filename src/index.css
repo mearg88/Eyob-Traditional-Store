@@ -13,100 +13,129 @@
   }
 
   body {
-    @apply bg-cotton-100 text-ink-900 font-sans antialiased;
-    /* Woven-cloth tooth: two faint diagonal threads over the cotton base.
-       Pure CSS, so it costs no bytes and no request on a 3G phone. */
-    background-image:
-      repeating-linear-gradient(45deg, rgba(188,167,132,0.045) 0 1px, transparent 1px 4px),
-      repeating-linear-gradient(-45deg, rgba(188,167,132,0.035) 0 1px, transparent 1px 5px);
+    @apply bg-bone-100 text-ink-900 font-sans antialiased;
   }
 
-  h1, h2, h3, h4 {
-    @apply font-display tracking-tight text-ink-900;
+  /*
+   * Ethiopic support.
+   *
+   * Amharic and Tigrinya are not enabled yet, but the stack is declared now
+   * so that when they are, text renders in a real Ethiopic face rather than
+   * falling back to boxes. Noto Sans Ethiopic ships on most Android devices.
+   */
+  :lang(am), :lang(ti) {
+    font-family: 'Noto Sans Ethiopic', 'Abyssinica SIL', system-ui, sans-serif;
+    line-height: 1.7; /* Ethiopic needs more room than Latin */
+  }
+
+  h1, h2, h3 {
+    @apply font-display text-ink-900;
     font-feature-settings: 'liga' 1, 'kern' 1;
   }
 
-  /* Visible focus for keyboard users, suppressed for mouse clicks. */
   :focus-visible {
-    @apply outline-none ring-2 ring-clay-400 ring-offset-2 ring-offset-cotton-100;
+    @apply outline-none ring-2 ring-clay-400 ring-offset-2 ring-offset-bone-100;
   }
 
   ::selection {
-    @apply bg-clay-200 text-ink-900;
+    @apply bg-clay-100 text-ink-900;
+  }
+
+  /* Numbers in tables and measurement fields should align. */
+  input[type='number'], .tabular {
+    font-variant-numeric: tabular-nums;
   }
 }
 
 @layer components {
   /* ---------------------------------------------------------------------
-     The tibeb band.
+     The tibeb rule.
 
-     Drawn as a repeating SVG data URI rather than a photograph: it stays
-     crisp at any size, weighs a few hundred bytes, and needs no network
-     request — which matters on the mid-range Android phones over 3G that
-     make up a large share of this audience.
+     Deliberately restrained. The first version of this site used a wide
+     woven band across every section, which fought the photography. Here the
+     motif is reduced to a hairline with a single diamond — a signature
+     rather than decoration.
 
-     The motif is a simplified reading of a woven border: a row of diamonds
-     between two rules, in clay red, ochre and deep green.
+     Drawn as an inline SVG data URI: a few hundred bytes, crisp at any size,
+     and no network request on a phone over 3G.
      --------------------------------------------------------------------- */
-  .tibeb-band {
-    height: 14px;
+  .tibeb-rule {
+    height: 7px;
     background-repeat: repeat-x;
-    background-size: auto 14px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='14' viewBox='0 0 48 14'%3E%3Crect width='48' height='14' fill='%23FAF6EE'/%3E%3Crect y='0.5' width='48' height='1' fill='%239C4F35'/%3E%3Crect y='12.5' width='48' height='1' fill='%239C4F35'/%3E%3Cpath d='M12 3.5 L16.5 7 L12 10.5 L7.5 7 Z' fill='%239C4F35'/%3E%3Cpath d='M36 3.5 L40.5 7 L36 10.5 L31.5 7 Z' fill='%239C4F35'/%3E%3Cpath d='M24 4.5 L27.5 7 L24 9.5 L20.5 7 Z' fill='%234A6148'/%3E%3Cpath d='M0 4.5 L3.5 7 L0 9.5 Z' fill='%23BF9A3C'/%3E%3Cpath d='M48 4.5 L44.5 7 L48 9.5 Z' fill='%23BF9A3C'/%3E%3C/svg%3E");
+    background-position: center;
+    background-size: auto 7px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='7' viewBox='0 0 64 7'%3E%3Crect y='3' width='64' height='0.6' fill='%238A4530' fill-opacity='0.35'/%3E%3Cpath d='M32 0.6 L35.2 3.3 L32 6 L28.8 3.3 Z' fill='%238A4530' fill-opacity='0.75'/%3E%3C/svg%3E");
   }
 
-  .tibeb-band-sm {
-    height: 8px;
-    background-size: auto 8px;
+  .tibeb-rule-gold {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='7' viewBox='0 0 64 7'%3E%3Crect y='3' width='64' height='0.6' fill='%23B8954A' fill-opacity='0.4'/%3E%3Cpath d='M32 0.6 L35.2 3.3 L32 6 L28.8 3.3 Z' fill='%23B8954A' fill-opacity='0.85'/%3E%3C/svg%3E");
   }
 
+  .eyebrow {
+    @apply text-[11px] font-medium uppercase tracking-eyebrow text-clay-500;
+  }
+
+  /* Buttons are square-edged and quiet. Rounded, shadowed buttons read as
+     software; this should read as a fashion house. 44px minimum height for
+     thumbs. */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-sm px-5 py-3 text-sm
-           font-medium transition-colors duration-150 disabled:cursor-not-allowed
-           disabled:opacity-50 min-h-[44px];
+    @apply inline-flex min-h-[46px] items-center justify-center gap-2 px-6 py-3
+           text-[13px] font-medium tracking-wide transition-colors duration-200
+           disabled:cursor-not-allowed disabled:opacity-40;
   }
 
   .btn-primary {
-    @apply btn bg-clay-500 text-cotton-50 hover:bg-clay-600 active:bg-clay-700;
+    @apply btn bg-ink-900 text-bone-50 hover:bg-clay-600 active:bg-clay-700;
   }
 
   .btn-secondary {
-    @apply btn border border-ink-900/15 bg-transparent text-ink-900 hover:bg-cotton-200;
+    @apply btn border border-ink-900/20 bg-transparent text-ink-900 hover:border-ink-900/50;
   }
 
   .btn-ghost {
-    @apply btn text-ink-500 hover:bg-cotton-200 hover:text-ink-900;
-  }
-
-  .card {
-    @apply rounded-sm border border-ink-900/8 bg-cotton-50 shadow-soft;
+    @apply btn px-3 text-ink-400 hover:text-ink-900;
   }
 
   .field-label {
-    @apply mb-1.5 block text-xs font-medium uppercase tracking-wider text-ink-500;
+    @apply mb-2 block text-[11px] font-medium uppercase tracking-wider text-ink-400;
   }
 
+  /* Underline-only inputs: lighter on the page than boxed fields, and they
+     keep long forms (measurements especially) from looking like a tax return. */
   .field {
-    @apply w-full rounded-sm border border-ink-900/15 bg-cotton-50 px-3.5 py-2.5
-           text-ink-900 placeholder:text-ink-400 focus:border-clay-400
-           min-h-[44px];
+    @apply min-h-[46px] w-full border-0 border-b border-ink-900/20 bg-transparent
+           px-0 py-2.5 text-ink-900 placeholder:text-ink-300
+           focus:border-clay-400 focus:ring-0;
+  }
+
+  .field-boxed {
+    @apply min-h-[46px] w-full border border-ink-900/15 bg-bone-50 px-3.5 py-2.5
+           text-ink-900 placeholder:text-ink-300 focus:border-clay-400 focus:ring-0;
+  }
+
+  .card {
+    @apply border border-ink-900/8 bg-bone-50;
   }
 
   .chip {
-    @apply inline-flex items-center gap-1.5 rounded-full border border-ink-900/12
-           bg-cotton-50 px-3 py-1.5 text-xs font-medium text-ink-500
-           transition-colors hover:border-clay-300 hover:text-ink-900;
+    @apply inline-flex items-center gap-1.5 border border-ink-900/12 px-3.5 py-2
+           text-xs text-ink-400 transition-colors hover:border-ink-900/40 hover:text-ink-900;
   }
 
   .chip-active {
-    @apply border-clay-400 bg-clay-500 text-cotton-50 hover:border-clay-500 hover:text-cotton-50;
+    @apply border-ink-900 bg-ink-900 text-bone-50 hover:border-ink-900 hover:text-bone-50;
   }
 
-  /* Skeleton while product images stream in over a slow connection. */
+  /* A quiet link underline that thickens on hover, rather than a colour change. */
+  .link {
+    @apply text-ink-900 underline decoration-ink-900/25 underline-offset-4
+           transition-colors hover:decoration-clay-500;
+  }
+
   .shimmer {
-    background: linear-gradient(90deg, #F2EBDD 25%, #FAF6EE 50%, #F2EBDD 75%);
+    background: linear-gradient(90deg, #F1EDE6 25%, #F9F7F3 50%, #F1EDE6 75%);
     background-size: 200% 100%;
-    animation: shimmer 1.4s infinite linear;
+    animation: shimmer 1.5s infinite linear;
   }
 
   @keyframes shimmer {

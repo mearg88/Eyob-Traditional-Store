@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Photo contact sheet &mdash; Eyob Traditional Store</title>
+<style>
+  :root {
+    --cotton: #FAF6EE; --ink: #1C1916; --muted: #6B6358;
+    --line: rgba(28,25,22,.12); --clay: #9C4F35;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 16px 80px;
+    background: var(--cotton); color: var(--ink);
+    font: 15px/1.5 Inter, system-ui, -apple-system, sans-serif;
+  }
+  header { max-width: 1280px; margin: 0 auto 28px; }
+  h1 { font: 600 30px/1.15 'Cormorant Garamond', Georgia, serif; margin: 0 0 8px; }
+  p { color: var(--muted); max-width: 60ch; margin: 0 0 6px; }
+  .grid {
+    max-width: 1280px; margin: 0 auto;
+    display: grid; gap: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  }
+  .card {
+    margin: 0; background: #fff; border: 1px solid var(--line);
+    border-radius: 3px; overflow: hidden;
+  }
+  .card img {
+    display: block; width: 100%; height: 300px;
+    object-fit: cover; background: #EFE7D8;
+  }
+  figcaption { padding: 10px 12px 12px; display: grid; gap: 6px; }
+  figcaption strong { font-size: 13px; letter-spacing: .02em; }
+  figcaption span { font-size: 11px; color: var(--muted); }
+  textarea {
+    width: 100%; font: inherit; font-size: 13px; padding: 6px 8px;
+    border: 1px solid var(--line); border-radius: 2px; resize: vertical;
+    background: var(--cotton);
+  }
+  textarea:focus { outline: 2px solid var(--clay); outline-offset: -1px; }
+  .note {
+    max-width: 1280px; margin: 0 auto 24px; padding: 14px 16px;
+    background: #F4DED6; border-left: 3px solid var(--clay); border-radius: 2px;
+  }
+  @media print {
+    textarea { min-height: 44px; }
+    .note { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Photo contact sheet</h1>
+    <p>All 41 photographs currently in the repository, named <code>design-01</code> to <code>design-41</code>.</p>
+    <p>Write what each one is in the box beneath it &mdash; design name, category, and anything that matters. Several photos of the same garment? Say so (&ldquo;same as design-07&rdquo;).</p>
+  </header>
+  <div class="note">
+    <strong>You can also skip this entirely.</strong> The admin will let you upload
+    and name designs yourself, which is probably faster and tests the admin
+    properly. This sheet is here in case you would rather do it on paper, or
+    hand it to someone else to fill in.
+  </div>
+  <div class="grid">
+      <figure class="card">
+        <img src="designs/design-01.jpg" alt="design-01" loading="lazy" width="1025" height="1280" />
+        <figcaption>
+          <strong>design-01</strong>
+          <span>1025&times;1280 &middot; 105 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-02.jpg" alt="design-02" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-02</strong>
+          <span>960&times;1280 &middot; 137 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-03.jpg" alt="design-03" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-03</strong>
+          <span>960&times;1280 &middot; 128 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-04.jpg" alt="design-04" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-04</strong>
+          <span>960&times;1280 &middot; 120 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-05.jpg" alt="design-05" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-05</strong>
+          <span>960&times;1280 &middot; 116 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-06.jpg" alt="design-06" loading="lazy" width="961" height="1280" />
+        <figcaption>
+          <strong>design-06</strong>
+          <span>961&times;1280 &middot; 122 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-07.jpg" alt="design-07" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-07</strong>
+          <span>960&times;1280 &middot; 154 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-08.jpg" alt="design-08" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-08</strong>
+          <span>960&times;1280 &middot; 100 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-09.jpg" alt="design-09" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-09</strong>
+          <span>960&times;1280 &middot; 114 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-10.jpg" alt="design-10" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-10</strong>
+          <span>960&times;1280 &middot; 131 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-11.jpg" alt="design-11" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-11</strong>
+          <span>960&times;1280 &middot; 147 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-12.jpg" alt="design-12" loading="lazy" width="1024" height="1280" />
+        <figcaption>
+          <strong>design-12</strong>
+          <span>1024&times;1280 &middot; 200 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-13.jpg" alt="design-13" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-13</strong>
+          <span>960&times;1280 &middot; 183 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-14.jpg" alt="design-14" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-14</strong>
+          <span>960&times;1280 &middot; 195 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-15.jpg" alt="design-15" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-15</strong>
+          <span>960&times;1280 &middot; 158 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-16.jpg" alt="design-16" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-16</strong>
+          <span>960&times;1280 &middot; 130 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-17.jpg" alt="design-17" loading="lazy" width="1025" height="1280" />
+        <figcaption>
+          <strong>design-17</strong>
+          <span>1025&times;1280 &middot; 105 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-18.jpg" alt="design-18" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-18</strong>
+          <span>960&times;1280 &middot; 214 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-19.jpg" alt="design-19" loading="lazy" width="1051" height="1280" />
+        <figcaption>
+          <strong>design-19</strong>
+          <span>1051&times;1280 &middot; 137 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-20.jpg" alt="design-20" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-20</strong>
+          <span>960&times;1280 &middot; 145 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-21.jpg" alt="design-21" loading="lazy" width="1024" height="1280" />
+        <figcaption>
+          <strong>design-21</strong>
+          <span>1024&times;1280 &middot; 193 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-22.jpg" alt="design-22" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-22</strong>
+          <span>960&times;1280 &middot; 137 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-23.jpg" alt="design-23" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-23</strong>
+          <span>960&times;1280 &middot; 100 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-24.jpg" alt="design-24" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-24</strong>
+          <span>960&times;1280 &middot; 114 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-25.jpg" alt="design-25" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-25</strong>
+          <span>960&times;1280 &middot; 154 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-26.jpg" alt="design-26" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-26</strong>
+          <span>960&times;1280 &middot; 120 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-27.jpg" alt="design-27" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-27</strong>
+          <span>960&times;1280 &middot; 147 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-28.jpg" alt="design-28" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-28</strong>
+          <span>960&times;1280 &middot; 116 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-29.jpg" alt="design-29" loading="lazy" width="961" height="1280" />
+        <figcaption>
+          <strong>design-29</strong>
+          <span>961&times;1280 &middot; 122 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-30.jpg" alt="design-30" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-30</strong>
+          <span>960&times;1280 &middot; 131 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-31.jpg" alt="design-31" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-31</strong>
+          <span>960&times;1280 &middot; 128 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-32.jpg" alt="design-32" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-32</strong>
+          <span>960&times;1280 &middot; 143 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-33.jpg" alt="design-33" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-33</strong>
+          <span>960&times;1280 &middot; 152 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-34.jpg" alt="design-34" loading="lazy" width="1021" height="1280" />
+        <figcaption>
+          <strong>design-34</strong>
+          <span>1021&times;1280 &middot; 201 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-35.jpg" alt="design-35" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-35</strong>
+          <span>960&times;1280 &middot; 150 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-36.jpg" alt="design-36" loading="lazy" width="1023" height="1280" />
+        <figcaption>
+          <strong>design-36</strong>
+          <span>1023&times;1280 &middot; 157 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-37.jpg" alt="design-37" loading="lazy" width="961" height="1280" />
+        <figcaption>
+          <strong>design-37</strong>
+          <span>961&times;1280 &middot; 138 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-38.jpg" alt="design-38" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-38</strong>
+          <span>960&times;1280 &middot; 131 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-39.jpg" alt="design-39" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-39</strong>
+          <span>960&times;1280 &middot; 136 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-40.jpg" alt="design-40" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-40</strong>
+          <span>960&times;1280 &middot; 170 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="designs/design-41.jpg" alt="design-41" loading="lazy" width="960" height="1280" />
+        <figcaption>
+          <strong>design-41</strong>
+          <span>960&times;1280 &middot; 131 KB</span>
+          <textarea placeholder="Design name, category, price…" rows="2"></textarea>
+        </figcaption>
+      </figure>
+  </div>
+</body>
+</html>
