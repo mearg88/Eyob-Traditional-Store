@@ -28,13 +28,9 @@ export async function getData(): Promise<DataAdapter> {
       created = new MockAdapter();
     } else {
       // Loaded lazily so the Supabase client stays out of the bundle that
-      // demo-mode visitors download. Written in M2, alongside authentication;
-      // until then, configuring Supabase keys is not yet supported and we say
-      // so rather than failing obscurely at runtime.
-      throw new Error(
-        'Supabase support is not wired up yet. Remove VITE_SUPABASE_URL and '
-        + 'VITE_SUPABASE_ANON_KEY to run in demo mode.',
-      );
+      // demo-mode visitors download.
+      const { SupabaseAdapter } = await import('./supabase');
+      created = new SupabaseAdapter(url!, anonKey!);
     }
     adapter = created;
     return created;

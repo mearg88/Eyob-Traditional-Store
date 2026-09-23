@@ -7,12 +7,16 @@ import PageSpinner from './components/PageSpinner';
 
 // Hash routing, chosen for Capacitor: inside the native app the bundle loads
 // from the device filesystem, where there is no server to map deep paths back
-// to index.html. Clean URLs still work on the web — see index.html, which
-// redirects them into the hash route, and api/og.ts, which serves link
-// previews at the same clean paths.
+// to index.html. Clean URLs still work on the web — index.html redirects them
+// into the hash route, and api/og.ts serves link previews at the same paths.
 const Shop = lazy(() => import('./pages/Shop'));
 const DesignPage = lazy(() => import('./pages/DesignPage'));
 const HowToMeasure = lazy(() => import('./pages/HowToMeasure'));
+const SignIn = lazy(() => import('./pages/account/SignIn'));
+const SignUp = lazy(() => import('./pages/account/SignUp'));
+const Account = lazy(() => import('./pages/account/Account'));
+// The admin is a separate chunk, so customers never download it.
+const AdminApp = lazy(() => import('./pages/admin/AdminApp'));
 
 const lazily = (element: ReactNode) => (
   <Suspense fallback={<PageSpinner />}>{element}</Suspense>
@@ -29,6 +33,10 @@ export const router = createHashRouter([
       { path: 'shop/:categorySlug', element: lazily(<Shop />) },
       { path: 'design/:slug', element: lazily(<DesignPage />) },
       { path: 'how-to-measure', element: lazily(<HowToMeasure />) },
+      { path: 'account', element: lazily(<Account />) },
+      { path: 'account/sign-in', element: lazily(<SignIn />) },
+      { path: 'account/join', element: lazily(<SignUp />) },
     ],
   },
+  { path: '/admin/*', element: lazily(<AdminApp />), errorElement: <ErrorPage /> },
 ]);
