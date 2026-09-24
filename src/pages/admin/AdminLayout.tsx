@@ -1,6 +1,6 @@
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import {
-  BarChart3, Coins, FolderTree, LogOut, Settings, Shirt,
+  BarChart3, Coins, FolderTree, LogOut, Ruler, Settings, Shirt, ShoppingBag,
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
 import { ROLES, can } from '../../lib/permissions';
@@ -8,6 +8,8 @@ import type { Permission } from '../../lib/types';
 
 const NAV: { to: string; label: string; icon: typeof Shirt; end?: boolean; needs?: Permission }[] = [
   { to: '/admin', label: 'Today', icon: BarChart3, end: true },
+  { to: '/admin/orders', label: 'Orders', icon: ShoppingBag, needs: 'orders.read' },
+  { to: '/admin/measurements', label: 'Measure', icon: Ruler, needs: 'measurements.read' },
   { to: '/admin/designs', label: 'Designs', icon: Shirt, needs: 'designs.read' },
   { to: '/admin/categories', label: 'Categories', icon: FolderTree, needs: 'designs.write' },
   { to: '/admin/pricing', label: 'Pricing', icon: Coins, needs: 'prices.read' },
@@ -73,7 +75,7 @@ export default function AdminLayout() {
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-ink-900/10 bg-bone-50 lg:hidden">
-        {visible.map(({ to, label, icon: Icon, end }) => (
+        {visible.slice(0, 5).map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to} to={to} end={end}
             className={({ isActive }) =>

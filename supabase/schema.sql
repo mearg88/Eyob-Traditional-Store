@@ -747,3 +747,425 @@ create policy staff_owner_write on staff_users for all
 --
 -- Until step 2, nobody can reach the admin — which is the correct default.
 -- ===========================================================================
+
+-- ===========================================================================
+-- Transactional functions
+--
+-- Everything that must happen together lives in one of these. A half-written
+-- order, or an audit entry without the change it describes, is worse than an
+-- outright failure.
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- create_order
+--
+-- Writes the order, its items, the pending payment and one verification queue
+-- entry per measurement set, in a single transaction.
+--
+-- Critically, it recomputes EVERY amount from this database and derives the
+-- pricing tier from the delivery country. Whatever the browser believed the
+-- price was is discarded. That is the whole reason this is a function rather
+-- than a series of inserts from the client.
+-- ---------------------------------------------------------------------------
+create or replace function create_order(
+  p_customer_id uuid,
+  p_email text,
+  p_phone text,
+  p_currency text,
+  p_tier price_tier,
+  p_locked_rate numeric,
+  p_fulfilment fulfilment_method,
+  p_shipping_address jsonb,
+  p_items jsonb,
+  p_promised_date date
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order_id uuid := gen_random_uuid();
+  v_reference text;
+  v_tier price_tier;
+  v_country text;
+  v_item jsonb;
+  v_design designs%rowtype;
+  v_base bigint;
+  v_option_effect bigint;
+  v_chosen jsonb;
+  v_choice record;
+  v_subtotal bigint := 0;
+  v_discount bigint := 0;
+  v_pickup_percent numeric;
+  v_tx_ref text;
+  v_set_id uuid;
+  v_values jsonb;
+begin
+  if p_customer_id is null or p_customer_id <> auth.uid() then
+    raise exception 'Orders can only be created for the signed-in customer';
+  end if;
+
+  -- The tier comes from where the parcel is going, never from the caller.
+  -- Without this, a VPN and a currency switcher would buy at Ethiopian prices.
+  v_country := upper(coalesce(p_shipping_address ->> 'countryCode', ''));
+  if p_fulfilment = 'pickup' then
+    v_tier := 'local';
+  else
+    v_tier := case when v_country = 'ET' then 'local' else 'international' end;
+  end if;
+
+  v_reference := 'ETS-' || upper(
+    translate(substr(encode(gen_random_bytes(8), 'base64'), 1, 6), 'OI01lo+/=', 'PJXYZW234')
+  );
+
+  select pickup_discount_percent into v_pickup_percent from store_settings where id = 1;
+
+  insert into orders (
+    id, reference, customer_id, email, phone, status, currency, tier,
+    locked_rate_from_usd, fulfilment, shipping_address, promised_date,
+    subtotal_amount, total_amount
+  ) values (
+    v_order_id, v_reference, p_customer_id, lower(trim(p_email)), p_phone,
+    'pending_payment', p_currency, v_tier, coalesce(p_locked_rate, 1),
+    p_fulfilment, p_shipping_address, p_promised_date, 0, 0
+  );
+
+  for v_item in select * from jsonb_array_elements(p_items) loop
+    select * into v_design from designs where id = v_item ->> 'designId';
+    if not found then
+      raise exception 'Design % no longer exists', v_item ->> 'designId';
+    end if;
+    if v_design.status <> 'published' then
+      raise exception '% is not available to order', v_design.name;
+    end if;
+
+    select amount into v_base
+      from design_prices where design_id = v_design.id and tier = v_tier;
+
+    if v_base is null then
+      raise exception 'No price is set for % in that region', v_design.name;
+    end if;
+
+    -- Option effects come from the stored choices, so a tampered basket cannot
+    -- discount itself by claiming a cheaper option.
+    v_option_effect := 0;
+    v_chosen := '[]'::jsonb;
+
+    for v_choice in
+      select o.name as option_name, c.label, c.price_effect_local, c.price_effect_usd
+        from design_option_choices c
+        join design_options o on o.id = c.option_id
+       where o.design_id = v_design.id
+         and c.id = any (
+           select jsonb_array_elements_text(v_item -> 'chosenChoiceIds')
+         )
+    loop
+      v_option_effect := v_option_effect + case
+        when v_tier = 'local' then v_choice.price_effect_local
+        else v_choice.price_effect_usd
+      end;
+      v_chosen := v_chosen || jsonb_build_object(
+        'optionName', v_choice.option_name,
+        'choiceLabel', v_choice.label,
+        'priceEffect', case when v_tier = 'local'
+          then v_choice.price_effect_local else v_choice.price_effect_usd end
+      );
+    end loop;
+
+    v_set_id := (v_item ->> 'measurementSetId')::uuid;
+
+    -- The measurement set must belong to the customer placing the order.
+    select values into v_values
+      from measurement_sets
+     where id = v_set_id and customer_id = p_customer_id;
+
+    if v_values is null then
+      raise exception 'Those measurements could not be found';
+    end if;
+
+    insert into order_items (
+      order_id, design_id, design_name, design_slug, photo_key,
+      chosen_options, special_request, measurement_set_id, measurement_snapshot,
+      quantity, unit_amount
+    ) values (
+      v_order_id, v_design.id, v_design.name, v_design.slug,
+      (select storage_key from design_photos where design_id = v_design.id order by position limit 1),
+      v_chosen, v_item ->> 'specialRequest', v_set_id, v_values,
+      coalesce((v_item ->> 'quantity')::integer, 1),
+      v_base + v_option_effect
+    );
+
+    v_subtotal := v_subtotal
+      + (v_base + v_option_effect) * coalesce((v_item ->> 'quantity')::integer, 1);
+
+    -- Every order enters the verification queue.
+    insert into measurement_reviews (order_id, measurement_set_id, status)
+    values (v_order_id, v_set_id, 'submitted');
+  end loop;
+
+  if p_fulfilment = 'pickup' then
+    v_discount := (v_subtotal * coalesce(v_pickup_percent, 0) / 100)::bigint;
+  end if;
+
+  update orders
+     set subtotal_amount = v_subtotal,
+         pickup_discount_amount = v_discount,
+         total_amount = greatest(0, v_subtotal - v_discount),
+         updated_at = now()
+   where id = v_order_id;
+
+  v_tx_ref := v_reference || '-' || substr(v_order_id::text, 1, 8);
+
+  insert into payments (order_id, tx_ref, amount, charge_currency, display_currency)
+  values (
+    v_order_id, v_tx_ref, greatest(0, v_subtotal - v_discount),
+    -- Charge in a currency Chapa can actually settle, falling back to USD.
+    case when p_currency = any (select unnest(charge_currencies) from store_settings where id = 1)
+      then p_currency else 'USD' end,
+    p_currency
+  );
+
+  insert into order_events (order_id, kind, visible_to_customer)
+  values (v_order_id, 'order_placed', true);
+
+  return jsonb_build_object(
+    'order_id', v_order_id,
+    'reference', v_reference,
+    'tx_ref', v_tx_ref,
+    'total', greatest(0, v_subtotal - v_discount)
+  );
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- edit_measurement
+--
+-- Logs the change AND applies it, in one transaction. A log entry without the
+-- change, or a change without the log, would each destroy the audit trail's
+-- usefulness in a dispute.
+--
+-- Always moves the review to awaiting_customer_confirmation: a garment is
+-- never cut to numbers the customer has not agreed to.
+-- ---------------------------------------------------------------------------
+create or replace function edit_measurement(
+  p_review_id uuid,
+  p_field_key text,
+  p_new_value numeric,
+  p_reason text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_review measurement_reviews%rowtype;
+  v_old numeric;
+begin
+  if not is_staff() then
+    raise exception 'Not authorised';
+  end if;
+
+  select * into v_review from measurement_reviews where id = p_review_id;
+  if not found then raise exception 'Review not found'; end if;
+
+  select (values ->> p_field_key)::numeric into v_old
+    from measurement_sets where id = v_review.measurement_set_id;
+
+  insert into measurement_edits (review_id, field_key, old_value_cm, new_value_cm, edited_by, reason)
+  values (p_review_id, p_field_key, v_old, p_new_value, auth.uid(), coalesce(p_reason, ''));
+
+  update measurement_sets
+     set values = values || jsonb_build_object(p_field_key, p_new_value),
+         updated_at = now()
+   where id = v_review.measurement_set_id;
+
+  update measurement_reviews
+     set status = 'awaiting_customer_confirmation',
+         customer_confirmed_at = null
+   where id = p_review_id;
+
+  update orders
+     set status = 'awaiting_customer_confirmation', updated_at = now()
+   where id = v_review.order_id;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- set_review_status
+--
+-- Production begins only when EVERY measurement set on the order is verified.
+-- A two-garment order with one unchecked set must not go to the workshop.
+-- ---------------------------------------------------------------------------
+create or replace function set_review_status(
+  p_review_id uuid,
+  p_status review_status,
+  p_notes text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order_id uuid;
+  v_all_verified boolean;
+begin
+  if not is_staff() then
+    raise exception 'Not authorised';
+  end if;
+
+  update measurement_reviews
+     set status = p_status,
+         staff_notes = coalesce(p_notes, staff_notes),
+         verified_at = case when p_status = 'verified' then now() else verified_at end,
+         verified_by = case when p_status = 'verified' then auth.uid() else verified_by end
+   where id = p_review_id
+  returning order_id into v_order_id;
+
+  if p_status = 'verified' then
+    select bool_and(status = 'verified') into v_all_verified
+      from measurement_reviews where order_id = v_order_id;
+
+    if v_all_verified then
+      update orders
+         set status = 'in_production', production_stage = 'fabric_cut', updated_at = now()
+       where id = v_order_id;
+
+      insert into order_events (order_id, kind, visible_to_customer)
+      values (v_order_id, 'measurements_verified', true);
+    end if;
+  end if;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- confirm_measurements
+--
+-- The customer approving the tailor's changes. Only the customer who owns the
+-- order may call it, and it pauses the promised date by however long the shop
+-- spent waiting — so a slow reply cannot consume the shop's own deadline and
+-- trigger a refund it does not owe.
+-- ---------------------------------------------------------------------------
+create or replace function confirm_measurements(p_review_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_review measurement_reviews%rowtype;
+  v_order orders%rowtype;
+  v_waited integer;
+begin
+  select * into v_review from measurement_reviews where id = p_review_id;
+  if not found then raise exception 'Review not found'; end if;
+
+  select * into v_order from orders where id = v_review.order_id;
+  if v_order.customer_id <> auth.uid() then
+    raise exception 'Not authorised';
+  end if;
+
+  select greatest(0, extract(day from now() - max(edited_at))::integer)
+    into v_waited
+    from measurement_edits where review_id = p_review_id;
+
+  update measurement_reviews
+     set customer_confirmed_at = now(),
+         -- Back to the specialist, who has the last word before cloth is cut.
+         status = 'under_review'
+   where id = p_review_id;
+
+  update orders
+     set status = 'measurements_under_review',
+         paused_days = paused_days + coalesce(v_waited, 0),
+         updated_at = now()
+   where id = v_review.order_id;
+end;
+$$;
+
+create or replace function set_order_status(
+  p_order_id uuid,
+  p_status order_status,
+  p_stage production_stage default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not is_staff() then
+    raise exception 'Not authorised';
+  end if;
+
+  update orders
+     set status = p_status,
+         production_stage = coalesce(p_stage, production_stage),
+         updated_at = now()
+   where id = p_order_id;
+
+  insert into order_events (order_id, kind, actor_id, visible_to_customer)
+  values (
+    p_order_id,
+    case when p_stage is not null then 'stage_' || p_stage::text else 'status_' || p_status::text end,
+    auth.uid(),
+    true
+  );
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- mark_order_paid
+--
+-- Called ONLY by the webhook handler, with the service role key, and only
+-- after the signature has been verified. Idempotent: a repeated webhook for an
+-- order already paid changes nothing and says so.
+-- ---------------------------------------------------------------------------
+create or replace function mark_order_paid(
+  p_tx_ref text,
+  p_provider_reference text,
+  p_payload jsonb
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_payment payments%rowtype;
+begin
+  select * into v_payment from payments where tx_ref = p_tx_ref for update;
+  if not found then return false; end if;
+  if v_payment.status = 'paid' then return false; end if;
+
+  update payments
+     set status = 'paid',
+         provider_reference = p_provider_reference,
+         raw_webhook_payload = p_payload,
+         paid_at = now()
+   where id = v_payment.id;
+
+  update orders
+     set status = 'measurements_under_review', updated_at = now()
+   where id = v_payment.order_id;
+
+  insert into order_events (order_id, kind, visible_to_customer)
+  values (v_payment.order_id, 'payment_received', true);
+
+  return true;
+end;
+$$;
+
+-- Function permissions. These are the only writes the anon and authenticated
+-- keys can perform, and each validates its own inputs.
+grant execute on function create_order(uuid, text, text, text, price_tier, numeric, fulfilment_method, jsonb, jsonb, date) to authenticated;
+grant execute on function confirm_measurements(uuid) to authenticated;
+grant execute on function edit_measurement(uuid, text, numeric, text) to authenticated;
+grant execute on function set_review_status(uuid, review_status, text) to authenticated;
+grant execute on function set_order_status(uuid, order_status, production_stage) to authenticated;
+
+-- mark_order_paid is deliberately NOT granted: only the service role, from the
+-- verified webhook, may mark money as received.
+revoke execute on function mark_order_paid(text, text, jsonb) from anon, authenticated;

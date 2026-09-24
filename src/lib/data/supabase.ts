@@ -1,9 +1,12 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type {
-  Category, CountryGroup, Design, DesignOption, DesignPrice, ExchangeRate,
-  MeasurementSet, Review, StoreSettings,
+  Category, ContactChannel, CountryGroup, Design, DesignOption, DesignPrice,
+  ExchangeRate, MeasurementReview, MeasurementSet, Order, OrderEvent,
+  OrderStatus, Payment, ProductionStage, Review, StoreSettings, WishlistEntry,
 } from '../types';
-import type { DataAdapter, DesignFilters } from './adapter';
+import type {
+  CreateOrderInput, DataAdapter, DesignFilters, EditMeasurementInput,
+} from './adapter';
 
 // ---------------------------------------------------------------------------
 // Supabase adapter.
@@ -444,4 +447,399 @@ export class SupabaseAdapter implements DataAdapter {
     if (!response.ok) throw new Error('Could not refresh rates just now.');
     return this.listExchangeRates();
   }
+
+  // --- Orders ---------------------------------------------------------------
+
+  /**
+   * Delegated to a Postgres function so the order, its items, the payment row
+   * and the verification queue entries are written in one transaction, and so
+   * every amount is recomputed from this database rather than trusted from the
+   * browser.
+   */
+  async createOrder(input: CreateOrderInput): Promise<{ order: Order; payment: Payment }> {
+    const { data, error } = await this.client.rpc('create_order', {
+      p_customer_id: input.customerId,
+      p_email: input.email,
+      p_phone: input.phone,
+      p_currency: input.currency,
+      p_tier: input.tier,
+      p_locked_rate: input.lockedRateFromUsd,
+      p_fulfilment: input.fulfilment,
+      p_shipping_address: input.shippingAddress ?? null,
+      p_items: input.items,
+      p_promised_date: input.promisedDate,
+    });
+    if (error) throw new Error(error.message);
+
+    const result = data as { order_id: string; reference: string; tx_ref: string; total: number };
+    const order = await this.getOrder(result.reference);
+    if (!order) throw new Error('Order was created but could not be read back.');
+
+    return {
+      order,
+      payment: {
+        id: result.tx_ref,
+        orderId: result.order_id,
+        txRef: result.tx_ref,
+        provider: 'chapa',
+        status: 'pending',
+        amount: result.total,
+        chargeCurrency: input.currency,
+        displayCurrency: input.currency,
+        createdAt: new Date().toISOString(),
+      },
+    };
+  }
+
+  private toOrder(row: Row): Order {
+    return {
+      id: str(row.id),
+      reference: str(row.reference),
+      customerId: str(row.customer_id),
+      email: str(row.email),
+      phone: str(row.phone),
+      status: row.status as OrderStatus,
+      productionStage: (row.production_stage as ProductionStage) ?? undefined,
+      currency: row.currency as Order['currency'],
+      tier: row.tier as Order['tier'],
+      lockedRateFromUsd: num(row.locked_rate_from_usd, 1),
+      lockedAt: str(row.locked_at),
+      items: ((row.order_items as Row[]) ?? []).map((i) => ({
+        id: str(i.id),
+        designId: str(i.design_id),
+        designName: str(i.design_name),
+        designSlug: str(i.design_slug),
+        photoKey: str(i.photo_key) || undefined,
+        chosenOptions: (i.chosen_options as Order['items'][number]['chosenOptions']) ?? [],
+        specialRequest: str(i.special_request) || undefined,
+        measurementSetId: str(i.measurement_set_id),
+        measurementSnapshot: (i.measurement_snapshot as Record<string, number>) ?? {},
+        quantity: num(i.quantity, 1),
+        unitAmount: num(i.unit_amount),
+      })),
+      subtotalAmount: num(row.subtotal_amount),
+      pickupDiscountAmount: num(row.pickup_discount_amount),
+      totalAmount: num(row.total_amount),
+      fulfilment: row.fulfilment as Order['fulfilment'],
+      shippingAddress: (row.shipping_address as Order['shippingAddress']) ?? undefined,
+      promisedDate: str(row.promised_date),
+      pausedDays: num(row.paused_days),
+      notes: str(row.notes) || undefined,
+      createdAt: str(row.created_at),
+      updatedAt: str(row.updated_at),
+    };
+  }
+
+  async getOrder(reference: string): Promise<Order | null> {
+    const { data, error } = await this.client
+      .from('orders').select('*, order_items(*)')
+      .eq('reference', reference.trim().toUpperCase()).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data ? this.toOrder(data as Row) : null;
+  }
+
+  async listOrdersForCustomer(customerId: string): Promise<Order[]> {
+    const rows = await this.rows<Row>(
+      this.client.from('orders').select('*, order_items(*)')
+        .eq('customer_id', customerId)
+        .order('created_at', { ascending: false }),
+    );
+    return rows.map((r) => this.toOrder(r));
+  }
+
+  async listOrderEvents(orderId: string): Promise<OrderEvent[]> {
+    const rows = await this.rows<Row>(
+      this.client.from('order_events').select('*').eq('order_id', orderId).order('at'),
+    );
+    return rows.map((r) => ({
+      id: str(r.id),
+      orderId: str(r.order_id),
+      at: str(r.at),
+      kind: str(r.kind),
+      photoKey: str(r.photo_key) || undefined,
+      note: str(r.note) || undefined,
+      actorId: str(r.actor_id) || undefined,
+      visibleToCustomer: Boolean(r.visible_to_customer),
+    }));
+  }
+
+  // --- Verification ---------------------------------------------------------
+
+  private toMeasurementReview(row: Row): MeasurementReview {
+    return {
+      id: str(row.id),
+      orderId: str(row.order_id),
+      measurementSetId: str(row.measurement_set_id),
+      status: row.status as MeasurementReview['status'],
+      assignedTo: str(row.assigned_to) || undefined,
+      flags: (row.flags as string[]) ?? [],
+      contactAttempts: ((row.contact_attempts as Row[]) ?? []).map((a) => ({
+        id: str(a.id),
+        channel: a.channel as ContactChannel,
+        attemptedAt: str(a.attempted_at),
+        staffId: str(a.staff_id),
+        reached: Boolean(a.reached),
+        note: str(a.note) || undefined,
+      })),
+      edits: ((row.measurement_edits as Row[]) ?? []).map((e) => ({
+        id: str(e.id),
+        reviewId: str(e.review_id),
+        fieldKey: str(e.field_key),
+        oldValueCm: e.old_value_cm === null ? undefined : num(e.old_value_cm),
+        newValueCm: num(e.new_value_cm),
+        editedBy: str(e.edited_by),
+        editedAt: str(e.edited_at),
+        reason: str(e.reason),
+      })),
+      staffNotes: str(row.staff_notes) || undefined,
+      customerConfirmedAt: str(row.customer_confirmed_at) || undefined,
+      verifiedAt: str(row.verified_at) || undefined,
+      verifiedBy: str(row.verified_by) || undefined,
+      createdAt: str(row.created_at),
+    };
+  }
+
+  private readonly REVIEW_SELECT =
+    '*, contact_attempts(*), measurement_edits(*)';
+
+  async listMeasurementReviews(
+    status?: MeasurementReview['status'],
+  ): Promise<MeasurementReview[]> {
+    let query = this.client.from('measurement_reviews').select(this.REVIEW_SELECT);
+    if (status) query = query.eq('status', status);
+    const rows = await this.rows<Row>(query.order('created_at', { ascending: false }));
+    // Flagged sets first: those are the ones most likely to need a call.
+    return rows
+      .map((r) => this.toMeasurementReview(r))
+      .sort((a, b) => b.flags.length - a.flags.length);
+  }
+
+  async getMeasurementReview(id: string): Promise<MeasurementReview | null> {
+    const { data, error } = await this.client
+      .from('measurement_reviews').select(this.REVIEW_SELECT).eq('id', id).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data ? this.toMeasurementReview(data as Row) : null;
+  }
+
+  async getMeasurementReviewForOrder(orderId: string): Promise<MeasurementReview | null> {
+    const { data, error } = await this.client
+      .from('measurement_reviews').select(this.REVIEW_SELECT)
+      .eq('order_id', orderId).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data ? this.toMeasurementReview(data as Row) : null;
+  }
+
+  async editMeasurement(input: EditMeasurementInput): Promise<MeasurementReview> {
+    // One function so the edit is logged, the value applied and the review
+    // moved to awaiting confirmation atomically. A log entry without the change
+    // — or a change without the log — would both be worse than useless.
+    const { error } = await this.client.rpc('edit_measurement', {
+      p_review_id: input.reviewId,
+      p_field_key: input.fieldKey,
+      p_new_value: input.newValueCm,
+      p_reason: input.reason,
+    });
+    if (error) throw new Error(error.message);
+    const review = await this.getMeasurementReview(input.reviewId);
+    if (!review) throw new Error('Review not found after edit.');
+    return review;
+  }
+
+  async logContactAttempt(input: {
+    reviewId: string; channel: ContactChannel; staffId: string;
+    reached: boolean; note?: string;
+  }): Promise<MeasurementReview> {
+    const { error } = await this.client.from('contact_attempts').insert({
+      review_id: input.reviewId,
+      channel: input.channel,
+      staff_id: input.staffId,
+      reached: input.reached,
+      note: input.note ?? null,
+    });
+    if (error) throw new Error(error.message);
+
+    await this.client.from('measurement_reviews')
+      .update({ status: 'under_review' })
+      .eq('id', input.reviewId).eq('status', 'submitted');
+
+    const review = await this.getMeasurementReview(input.reviewId);
+    if (!review) throw new Error('Review not found.');
+    return review;
+  }
+
+  async setMeasurementReviewStatus(
+    id: string,
+    status: MeasurementReview['status'],
+    _by: string,
+    notes?: string,
+  ): Promise<MeasurementReview> {
+    const { error } = await this.client.rpc('set_review_status', {
+      p_review_id: id,
+      p_status: status,
+      p_notes: notes ?? null,
+    });
+    if (error) throw new Error(error.message);
+    const review = await this.getMeasurementReview(id);
+    if (!review) throw new Error('Review not found.');
+    return review;
+  }
+
+  async confirmMeasurements(reviewId: string): Promise<MeasurementReview> {
+    const { error } = await this.client.rpc('confirm_measurements', { p_review_id: reviewId });
+    if (error) throw new Error(error.message);
+    const review = await this.getMeasurementReview(reviewId);
+    if (!review) throw new Error('Review not found.');
+    return review;
+  }
+
+  // --- Social ---------------------------------------------------------------
+
+  async listWishlist(customerId: string): Promise<WishlistEntry[]> {
+    const rows = await this.rows<Row>(
+      this.client.from('wishlist_entries').select('*').eq('customer_id', customerId),
+    );
+    return rows.map((r) => ({
+      customerId: str(r.customer_id),
+      designId: str(r.design_id),
+      addedAt: str(r.added_at),
+    }));
+  }
+
+  async toggleWishlist(customerId: string, designId: string): Promise<boolean> {
+    const { data } = await this.client.from('wishlist_entries').select('design_id')
+      .eq('customer_id', customerId).eq('design_id', designId).maybeSingle();
+
+    if (data) {
+      await this.client.from('wishlist_entries').delete()
+        .eq('customer_id', customerId).eq('design_id', designId);
+      return false;
+    }
+    await this.client.from('wishlist_entries').insert({
+      customer_id: customerId, design_id: designId,
+    });
+    return true;
+  }
+
+  async submitReview(input: {
+    designId: string; orderId: string; customerId: string; authorName: string;
+    rating: 1 | 2 | 3 | 4 | 5; body: string; photoKeys: string[];
+  }): Promise<Review> {
+    // The verified-buyer rule is a database policy, so an insert that does not
+    // satisfy it is refused here rather than being filtered in the interface.
+    const { data, error } = await this.client.from('reviews').insert({
+      design_id: input.designId,
+      order_id: input.orderId,
+      customer_id: input.customerId,
+      author_name: input.authorName,
+      rating: input.rating,
+      body: input.body,
+      photo_keys: input.photoKeys,
+    }).select().single();
+
+    if (error) {
+      throw new Error(
+        'Reviews can only be left for an order that has been delivered.',
+      );
+    }
+
+    const r = data as Row;
+    return {
+      id: str(r.id),
+      designId: str(r.design_id),
+      orderId: str(r.order_id),
+      customerId: str(r.customer_id),
+      authorName: str(r.author_name),
+      rating: num(r.rating, 5) as Review['rating'],
+      body: str(r.body),
+      photoKeys: (r.photo_keys as string[]) ?? [],
+      approved: Boolean(r.approved),
+      createdAt: str(r.created_at),
+    };
+  }
+
+  // --- Admin: orders --------------------------------------------------------
+
+  async adminListOrders(status?: OrderStatus): Promise<Order[]> {
+    let query = this.client.from('orders').select('*, order_items(*)')
+      .order('created_at', { ascending: false });
+    if (status) query = query.eq('status', status);
+    const rows = await this.rows<Row>(query);
+    return rows.map((r) => this.toOrder(r));
+  }
+
+  async adminGetOrder(id: string): Promise<Order | null> {
+    const { data, error } = await this.client
+      .from('orders').select('*, order_items(*)').eq('id', id).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data ? this.toOrder(data as Row) : null;
+  }
+
+  async adminSetOrderStatus(
+    id: string,
+    status: OrderStatus,
+    _by: string,
+    stage?: ProductionStage,
+  ): Promise<Order> {
+    const { error } = await this.client.rpc('set_order_status', {
+      p_order_id: id,
+      p_status: status,
+      p_stage: stage ?? null,
+    });
+    if (error) throw new Error(error.message);
+    const order = await this.adminGetOrder(id);
+    if (!order) throw new Error('Order not found after update.');
+    return order;
+  }
+
+  async adminAddOrderEvent(input: {
+    orderId: string; kind: string; note?: string; photoKey?: string;
+    actorId?: string; visibleToCustomer?: boolean;
+  }): Promise<OrderEvent> {
+    const { data, error } = await this.client.from('order_events').insert({
+      order_id: input.orderId,
+      kind: input.kind,
+      note: input.note ?? null,
+      photo_key: input.photoKey ?? null,
+      actor_id: input.actorId ?? null,
+      visible_to_customer: input.visibleToCustomer ?? true,
+    }).select().single();
+    if (error) throw new Error(error.message);
+
+    const r = data as Row;
+    return {
+      id: str(r.id),
+      orderId: str(r.order_id),
+      at: str(r.at),
+      kind: str(r.kind),
+      photoKey: str(r.photo_key) || undefined,
+      note: str(r.note) || undefined,
+      actorId: str(r.actor_id) || undefined,
+      visibleToCustomer: Boolean(r.visible_to_customer),
+    };
+  }
+
+  async adminListPendingReviews(): Promise<Review[]> {
+    const rows = await this.rows<Row>(
+      this.client.from('reviews').select('*').eq('approved', false)
+        .order('created_at', { ascending: false }),
+    );
+    return rows.map((r) => ({
+      id: str(r.id),
+      designId: str(r.design_id),
+      orderId: str(r.order_id),
+      customerId: str(r.customer_id),
+      authorName: str(r.author_name),
+      rating: num(r.rating, 5) as Review['rating'],
+      body: str(r.body),
+      photoKeys: (r.photo_keys as string[]) ?? [],
+      approved: false,
+      createdAt: str(r.created_at),
+    }));
+  }
+
+  async adminModerateReview(id: string, approved: boolean): Promise<void> {
+    const { error } = await this.client.from('reviews').update({ approved }).eq('id', id);
+    if (error) throw new Error(error.message);
+  }
+
 }

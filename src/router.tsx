@@ -15,6 +15,10 @@ const HowToMeasure = lazy(() => import('./pages/HowToMeasure'));
 const SignIn = lazy(() => import('./pages/account/SignIn'));
 const SignUp = lazy(() => import('./pages/account/SignUp'));
 const Account = lazy(() => import('./pages/account/Account'));
+const Cart = lazy(() => import('./pages/Cart'));
+const Checkout = lazy(() => import('./pages/Checkout'));
+const OrderPage = lazy(() => import('./pages/OrderPage'));
+const ConfirmMeasurements = lazy(() => import('./pages/ConfirmMeasurements'));
 // The admin is a separate chunk, so customers never download it.
 const AdminApp = lazy(() => import('./pages/admin/AdminApp'));
 
@@ -36,6 +40,10 @@ export const router = createHashRouter([
       { path: 'account', element: lazily(<Account />) },
       { path: 'account/sign-in', element: lazily(<SignIn />) },
       { path: 'account/join', element: lazily(<SignUp />) },
+      { path: 'cart', element: lazily(<Cart />) },
+      { path: 'checkout', element: lazily(<Checkout />) },
+      { path: 'order/:reference', element: lazily(<OrderPage />) },
+      { path: 'order/:reference/measurements', element: lazily(<ConfirmMeasurements />) },
     ],
   },
   { path: '/admin/*', element: lazily(<AdminApp />), errorElement: <ErrorPage /> },
