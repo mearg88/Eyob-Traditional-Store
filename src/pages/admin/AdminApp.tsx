@@ -12,6 +12,7 @@ import AdminVerification from './AdminVerification';
 import AdminVerificationDetail from './AdminVerificationDetail';
 import AdminOrders from './AdminOrders';
 import AdminOrderDetail from './AdminOrderDetail';
+import AdminReviews from './AdminReviews';
 
 export default function AdminApp() {
   const staffRole = useAuth((s) => s.staffRole);
@@ -31,6 +32,7 @@ export default function AdminApp() {
         <Route path="measurements/:id" element={<AdminVerificationDetail />} />
         <Route path="orders" element={<AdminOrders />} />
         <Route path="orders/:id" element={<AdminOrderDetail />} />
+        <Route path="reviews" element={<AdminReviews />} />
         <Route path="categories" element={<AdminCategories />} />
         <Route path="pricing" element={<AdminPricing />} />
         <Route path="settings" element={<AdminSettings />} />

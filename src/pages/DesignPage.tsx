@@ -10,6 +10,7 @@ import { templateById } from '../lib/measurements';
 import { useTranslation } from '../i18n';
 import Photo from '../components/Photo';
 import PageSpinner from '../components/PageSpinner';
+import WishlistButton from '../components/WishlistButton';
 
 export default function DesignPage() {
   const { slug } = useParams();
@@ -278,6 +279,8 @@ export default function DesignPage() {
                 {t('design.addToBasket')}
               </button>
             )}
+
+            <WishlistButton designId={design.id} className="mt-3 px-0" />
 
             <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-xs text-ink-300">
               <span className="flex items-center gap-1.5"><Truck size={13} /> {t('home.trustIncluded')}</span>

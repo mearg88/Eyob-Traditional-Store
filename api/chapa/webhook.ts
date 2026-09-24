@@ -114,6 +114,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const succeeded = eventStatus === 'success' || eventStatus === 'successful';
 
   if (!succeeded) {
+    // Nothing to release: this shop holds no stock, so a failed payment simply
+    // leaves the order unpaid. The customer can try again from the order page.
     await supabase
       .from('payments')
       .update({
@@ -122,18 +124,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         failure_reason: String(payload.message ?? eventStatus),
       })
       .eq('tx_ref', txRef);
-
-    // Put the garment back on the shelf. With one-of-a-kind stock, a piece
-    // left reserved after a failed payment is a piece nobody can buy.
-    const { data: payment } = await supabase
-      .from('payments').select('order_id').eq('tx_ref', txRef).maybeSingle();
-
-    if (payment) {
-      const { data: items } = await supabase
-        .from('order_items').select('product_id').eq('order_id', payment.order_id);
-      const ids = (items ?? []).map((i) => i.product_id).filter(Boolean) as string[];
-      if (ids.length > 0) await supabase.rpc('release_products', { p_product_ids: ids });
-    }
 
     res.status(200).json({ received: true });
     return;

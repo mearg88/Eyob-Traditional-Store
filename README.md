@@ -1,11 +1,12 @@
 # Eyob Traditional Store
 
-Online shop for handwoven Ethiopian traditional clothing — habesha kemis,
-netela, gabi, kuta, menswear, children's wear and accessories — selling to
-customers inside Ethiopia and to the diaspora abroad.
+A made-to-measure atelier platform. Handwoven Ethiopian clothing, cut to each
+customer's own measurements in Addis Ababa and delivered worldwide.
 
-One React codebase serves the web store and, through Capacitor, the iOS and
-Android apps.
+**This is not a shop with inventory.** A design is a template, not an object —
+it can be ordered by fifty people and each garment is cut differently. Nothing
+is ever in stock, nothing sells out, and two people ordering the same design at
+once is entirely ordinary. Almost every design decision follows from that.
 
 ---
 
@@ -16,249 +17,181 @@ npm install
 npm run dev
 ```
 
-That is the whole setup. **With no environment variables at all the app runs in
-demo mode**: a seeded catalogue of 20 pieces, working cart and checkout, and
-simulated payments. Nothing leaves the machine and no accounts are needed.
+That is the whole setup. **With no environment variables the app runs in demo
+mode**: a seeded catalogue on the shop's real photographs, working orders,
+verification and simulated payments. Nothing leaves the machine.
 
-Demo mode is labelled in the interface everywhere it could be mistaken for the
-real thing.
+Demo mode is labelled wherever it could be mistaken for the real thing.
 
-| Command | What it does |
+| Command | |
 |---|---|
-| `npm run dev` | Development server on :5173 |
-| `npm run build` | Production build into `dist/` |
-| `npm test` | Unit tests |
-| `npm run typecheck` | TypeScript, no emit |
-| `npm run cap:sync` | Build and sync into the native projects |
+| `npm run dev` | Development server |
+| `npm run build` | Production build |
+| `npm test` | 85 unit tests |
+| `npm run typecheck` | TypeScript |
+| `npm run cap:sync` | Build and sync the mobile app |
 
-The admin area is at `/#/admin`. In demo mode any email and any password of
-four characters or more will sign you in.
+The admin is at `/#/admin`. In demo mode any email and password signs you in as
+the owner.
 
 ---
 
-## How it is put together
+## The shape of it
 
 **React + Vite, no Next.js.** One bundle, deployed static to Vercel and wrapped
-by Capacitor for mobile. Routing is hash-based (`/#/shop`) because inside the
-native app the bundle loads from the device filesystem, where no server exists
-to resolve deep paths.
-
-The cost of dropping server rendering is that link-preview crawlers — WhatsApp,
-Facebook, Telegram — cannot read a JavaScript-rendered page. `api/og.ts` covers
-that: a rewrite in `vercel.json` sends those crawlers to a small function that
-returns real Open Graph tags, so a shared product link shows the photograph and
-the price. Humans never hit it.
+by Capacitor for mobile. Hash routing, because inside the native app the bundle
+loads from the device filesystem where no server exists to resolve deep paths.
+Clean URLs still work on the web — `index.html` redirects them into the hash
+route, and `api/og.ts` serves link previews at the same paths so a design shared
+on WhatsApp shows its photograph and price.
 
 ```
 src/
-  lib/          Domain logic. Start here.
-    types.ts        The shapes everything else agrees on
-    pricing.ts      Currencies, and the diaspora pricing rule
-    measurements.ts The seven measurements, and which direction they point
-    shipping.ts     Zones, flat rates, and the provider interface
-    checkout.ts     Reserve-then-write, with the client never trusted
-    images.ts       In-browser resizing and compression
-    data/           Adapters: mock for demo, Supabase for production
-  pages/        Storefront and admin screens
-  components/   Shared UI
-api/            Serverless functions (Chapa, link previews)
-supabase/       Schema, RLS policies, transactional functions
+  lib/            Domain logic — start here
+    types.ts          The vocabulary everything agrees on
+    pricing.ts        Currencies, uplift, and the anti-spoofing rule
+    measurements.ts   Templates per garment, and the sanity checks
+    checkout.ts       Reserve nothing, trust nothing, lock the rate
+    permissions.ts    Roles as data
+    images.ts         In-browser resizing
+    data/             Adapters: mock for demo, Supabase for production
+  pages/          Storefront, account, admin
+  components/     Shared UI
+  i18n/           Every string, ready for Amharic and Tigrinya
+api/              Serverless: payments, rates, geo, notifications, previews
+supabase/         Schema, RLS policies, transactional functions
+docs/             Decisions, data model, launch checklist
 ```
 
 ---
 
-## The decisions worth knowing
+## The decisions that matter
 
-### Ready-made pieces are one of a kind
+### The verification workflow is the product
 
-Each ready-made garment physically exists, once. There is no size matrix and no
-stock count — a product is `available`, `reserved`, `sold` or `archived`.
+A customer submits measurements; a tailor checks them; where they look wrong
+the tailor messages the customer and edits the numbers; **the customer must
+approve the change before anything is cut.**
 
-This makes the concurrency problem *more* important, not less: every sale is a
-last-item sale. `reserve_products()` in the schema flips `available` to
-`reserved` with a single atomic conditional `UPDATE`, so of two customers
-racing for the same kemis, exactly one wins and the other is told plainly what
-happened.
+That last step is not politeness. When someone says months later that a garment
+does not fit, you open the order and show the exact numbers they approved, and
+the date. The edit log is append-only in both adapters and protected by a
+database trigger that refuses updates and deletes — an audit trail that staff
+can quietly tidy is not an audit trail.
 
-Made-to-order pieces never sell out. They carry a lead time and collect the
-customer's measurements instead.
+Waiting on a customer **pauses the promised date**. Without that, a slow reply
+eats the shop's own deadline and triggers a refund under the late-delivery
+guarantee that was never owed.
+
+### Diaspora pricing cannot be spoofed
+
+The shop charges international customers more, because delivery is baked into
+the price. Since price depends on who you are, someone will try to game it:
+
+> **The price tier is a function of the delivery address country.**
+
+Not the IP address, not the displayed currency, not anything the browser sends.
+IP geolocation picks a currency to *show* a first-time visitor and never touches
+money. `create_order()` derives the tier server-side and recomputes every
+amount from stored prices. Switching the display to birr from Toronto changes
+what you look at, never what you pay.
+
+### Two prices, one uplift, no rate feed in the browser
+
+You type a birr price and a dollar price per design. Each region carries an
+**uplift percentage** covering delivery there, so when a courier raises prices
+you edit one number instead of three hundred designs.
+
+Exchange rates are fetched daily by a server function, with your margin applied
+there rather than in the browser, and stored. Checkout reads stored rates — a
+rate provider going down slows nothing. **The rate is frozen onto the order at
+placement**, so days of verification cannot move the price under a customer.
 
 ### Measurements point in two directions
 
-The same seven fields (bust, waist, hips, shoulder-to-shoulder,
-shoulder-to-waist, arm length, total length) are used for both kinds, but they
-describe different things:
+The same fields mean different things depending on the garment, and the field
+list itself differs — a bridal gown needs twelve, a shawl needs two. Stored in
+centimetres always; inches are a display conversion, so there is one number in
+the database and no drift when someone toggles units mid-form.
 
-- **Ready-made** → the measurements of *the garment*
-- **Made to order** → the measurements of *the wearer*
+The guide is **one measurement per screen**, because that is how the task
+actually happens: put the phone down, measure, pick the phone up, type. Values
+are checked as they are entered — including the classic failure of a tape read
+in inches and entered as centimetres, which would produce a garment half the
+size it should be.
 
-Sellers in this category consistently report that customers reading a body
-chart as a garment chart is the main cause of fit returns, so the interface
-labels which one is on screen every time it shows them. Stored in centimetres;
-inches are a display conversion only.
-
-### Prices are typed by hand, never converted
-
-There is no exchange-rate feed anywhere in this system, by explicit decision.
-Every price in every currency is entered in the admin. No rate API to break, no
-stale cache, and prices that read like prices — $145, not $137.42.
-
-The cost is data entry, and it is real: 12 currencies × 2 tiers per product.
-
-### Diaspora customers pay more, and it cannot be spoofed
-
-The shop charges international customers a higher tier. Since price depends on
-who you are, someone will try to game it, so the rule is narrow:
-
-> **The price tier is a function of the shipping destination country.**
-
-Not the IP address, not a query parameter, not anything in localStorage. IP
-geolocation picks a *display currency* for a first-time visitor and never
-touches money. `create_order()` recomputes the tier from the saved shipping
-address before writing a single amount, so a client that lies is corrected
-rather than obeyed.
-
-Checkout tells the customer plainly when their destination changes the prices
-they were shown, rather than quietly altering the number.
-
-### Shipping is flat rates, deliberately
-
-Live courier rates (DHL, FedEx, Aramex) need a commercial account with
-negotiated rates before credentials are issued, and Ethiopian Postal Service
-has no public API. None of that exists yet.
-
-So rates are per-zone, set by the owner in the admin, behind a
-`ShippingRateProvider` interface. When a carrier is chosen, write one adapter,
-register it, and checkout does not change.
+**These field lists came from research into what established Habesha sellers
+collect, not from this workshop.** They are data, not code. Have your tailor
+correct them.
 
 ### Images are processed in the browser
 
-R2's free tier has no transformation service and paid resizing is out of
-budget, so `<canvas>` does it at upload time: four renditions (thumb, listing,
-detail, zoom) in WebP where supported. A 4 MB phone photo becomes roughly
-300–500 KB in total. At 50 products × 3 photos that sits comfortably inside the
-10 GB allowance; the originals alone would not.
+R2's free tier has no transformation service and paid resizing is out of budget,
+so `<canvas>` does it at upload: four renditions in WebP where supported. A 4MB
+phone photograph becomes roughly 300–500KB.
 
 ---
 
 ## Security
 
-**Row Level Security is on every table.** With RLS enabled and no policy, a
-table denies everything through the anon key — so a table added later and
-forgotten fails closed.
+**Row Level Security is on all 24 tables.** A table with RLS enabled and no
+policy denies everything, so a table added later and forgotten fails closed.
 
-- Customers read their own orders only. A guest needs the reference **and** the
-  matching email together; a guessed reference alone returns nothing.
-- Nobody can write an order directly. `create_order()` computes every amount
-  from the database.
-- **Nothing but the verified webhook can mark an order paid.** A browser
-  redirect to a success page proves nothing — anyone can visit that URL.
-- `mark_order_paid()` is not granted to `anon` or `authenticated` at all.
+- Customers read only their own orders and measurements.
+- Draft designs are invisible to the public.
+- Raw payment payloads are staff-only.
+- **Only a verified webhook can mark an order paid.** A browser landing on a
+  success page proves nothing.
+- `mark_order_paid` is not granted to `anon` or `authenticated` at all.
+- Reviews can only be written by a customer whose order reached *delivered* and
+  contained that design — checked in the policy, not the interface.
 
-### Which keys are public, which are secret
+### Which keys are public
 
-| Variable | Where it lives | Public? |
+| Variable | Where | Public? |
 |---|---|---|
-| `VITE_SUPABASE_URL` | Browser bundle | Yes — public by design |
-| `VITE_SUPABASE_ANON_KEY` | Browser bundle | Yes — RLS is what protects data |
-| `VITE_CHAPA_PUBLIC_KEY` | Browser bundle | Yes |
-| `SUPABASE_SERVICE_ROLE_KEY` | Serverless only | **No — bypasses all RLS** |
-| `CHAPA_SECRET_KEY` | Serverless only | **No — can take payments** |
-| `CHAPA_WEBHOOK_SECRET` | Serverless only | **No — can forge payments** |
-| `R2_SECRET_ACCESS_KEY` | Serverless only | **No** |
+| `VITE_SUPABASE_URL` | Browser | Yes, by design |
+| `VITE_SUPABASE_ANON_KEY` | Browser | Yes — RLS is the protection |
+| `VITE_SITE_URL` | Browser | Yes |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server only | **No — bypasses all RLS** |
+| `CHAPA_SECRET_KEY` | Server only | **No — can take payments** |
+| `CHAPA_WEBHOOK_SECRET` | Server only | **No — can forge payments** |
+| `RESEND_API_KEY`, `TELEGRAM_BOT_TOKEN`, `R2_SECRET_ACCESS_KEY` | Server only | **No** |
 
-Anything prefixed `VITE_` is compiled into the bundle and readable by anyone
-who opens the site. **Never put a secret behind that prefix.**
+Anything prefixed `VITE_` is compiled into the bundle and readable by anyone.
+**Never put a secret behind that prefix.** Audited on every build:
+
+```bash
+grep -rn "VITE_" src/ | grep -v "SUPABASE_URL\|ANON_KEY\|SITE_URL\|CHAPA_PUBLIC"
+```
 
 ### The admin login is not a security boundary
 
-`src/lib/adminAuth.ts` controls what the admin UI *shows*. Anyone can set a
-flag in their own browser. What actually protects admin data is RLS checking
-membership of `admin_users` on every query. Hiding a button is a convenience,
-not a defence.
+`src/lib/auth.ts` decides what the interface *shows*. Anyone can set a flag in
+their own browser. What protects data is RLS checking `staff_users` on every
+query.
 
 ---
 
 ## Going live
 
-### 1. Supabase
+See **`docs/LAUNCH-CHECKLIST.md`** — written for the shop owner, not a
+developer.
 
-Create a project, run `supabase/schema.sql` in the SQL editor, then make
-yourself an admin:
+Two things gate a real launch:
 
-```sql
-insert into admin_users (user_id, role)
-values ('<your-auth-user-id>', 'owner');
-```
-
-Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. The app leaves demo mode
-automatically.
-
-Schedule reservation cleanup so abandoned checkouts release their stock:
-
-```sql
-select cron.schedule('expire-reservations', '*/15 * * * *',
-  $$select expire_stale_reservations(30)$$);
-```
-
-### 2. Chapa — read this before trusting the integration
-
-**Chapa's developer documentation was not reachable from the machine this was
-built on** (blocked by an egress proxy), so `api/_lib/chapa.ts` follows their
-published SDKs rather than the specification. Points marked `CONFIRM` in that
-file need checking against <https://developer.chapa.co> before real money moves:
-
-- The exact webhook signature header, and what it signs. Two names are in
-  circulation (`x-chapa-signature`, `Chapa-Signature`) and reports differ on
-  whether one signs the body or the secret. We currently accept either header
-  **only** when it carries a correct HMAC of the raw body — safer than trusting
-  a header whose meaning is unconfirmed, but worth pinning down.
-- Which currencies your account may charge in.
-- The expected amount format for three-decimal currencies (KWD, OMR, BHD).
-
-Fee context for pricing decisions: roughly 3.5% on local transactions and 1% on
-international ones. **Verify current rates against Chapa's own pricing page** —
-these are from the brief, not from their API.
-
-Then: set `CHAPA_SECRET_KEY` and `CHAPA_WEBHOOK_SECRET`, point the webhook at
-`https://yourdomain/api/chapa/webhook`, and test with their test keys first.
-
-The webhook handles a bad signature (401), a duplicate delivery (200, no
-change — a non-2xx would make Chapa retry forever), an unknown reference, a
-failed payment (releases the stock), and a late arrival (no time limit).
-
-### 3. Mobile
-
-```bash
-npm i -D @capacitor/ios @capacitor/android
-npx cap add ios
-npx cap add android
-npm run cap:sync
-```
-
-### 4. Before the first deploy
-
-- [ ] `grep -r "VITE_" src/` — confirm no secret is behind that prefix
-- [ ] Replace every seeded photograph with the shop's own
-- [ ] Set real shipping rates in the admin
-- [ ] Confirm the Chapa `CONFIRM` points above
-- [ ] Test a real payment end to end with a small amount
+1. **The measurement lists need the workshop's confirmation.**
+2. **Chapa's settlement currencies need checking**, and the `CONFIRM` points in
+   `api/_lib/chapa.ts` verifying against their live documentation, which was
+   unreachable from the machine this was built on.
 
 ---
 
 ## Not built yet
 
-Deliberately out of scope for the first version, in rough priority order:
+Deliberately deferred, with reasons, in `docs/DECISIONS.md`: group orders,
+Amharic and Tigrinya, the WhatsApp Business API, app store releases, promo
+codes, and wholesale accounts.
 
-- **Amharic and Tigrinya.** English only for now. Roughly doubles the text work
-  and needs font handling.
-- **Live courier rates.** Blocked on choosing a carrier and opening an account.
-- **WhatsApp order updates.** The Business API needs Meta verification,
-  an approved number and template approval, and costs money per conversation.
-  A `wa.me` support link stands in; Telegram is the free instant channel.
-- **Customer accounts.** Guest checkout plus reference-and-email lookup covers
-  the need; saved addresses and order history need Supabase Auth wired up.
-- **R2 upload wiring.** Processing is done; the PUT to the bucket needs
-  credentials.
-- **Email sending.** Templates and a Resend key.
-- **Review submission.** Reviews display; customers cannot yet leave one.
+**Known gap:** uploaded photographs are held as temporary browser links until
+R2 credentials are wired in. They compress correctly; they do not yet persist.

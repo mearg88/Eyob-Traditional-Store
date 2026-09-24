@@ -1,7 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import {
-  initializeTransaction, splitName, toMajorUnits,
-} from '../_lib/chapa';
+import { initializeTransaction, splitName, toMajorUnits } from '../_lib/chapa';
 
 // ---------------------------------------------------------------------------
 // POST /api/chapa/initialize
@@ -10,13 +8,9 @@ import {
 // used; this function looks the order up with the service role key and charges
 // what the DATABASE says the total is.
 //
-// That is the whole point of the indirection. If the amount came from the
-// request body, a customer could pay $1 for a $450 kemis by editing it.
+// That is the entire point of the indirection: if the amount came from the
+// request body, a customer could pay $1 for a $450 gown by editing it.
 // ---------------------------------------------------------------------------
-
-const DECIMALS: Record<string, number> = {
-  KWD: 3, OMR: 3, BHD: 3,
-};
 
 interface VercelRequest {
   method?: string;
@@ -41,11 +35,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const siteUrl = process.env.VITE_SITE_URL ?? '';
 
   if (!supabaseUrl || !serviceKey || !chapaSecret) {
-    // Deliberately vague to the customer, specific in the log. An error
-    // message is not the place to advertise which secret is missing.
+    // Vague to the customer, specific in the log. An error message is not the
+    // place to advertise which secret is missing.
     console.error('initialize: missing environment configuration');
     res.status(500).json({
-      message: 'Payments are not configured yet. Please contact the shop.',
+      message: 'Payments are not set up yet. Please contact the shop.',
     });
     return;
   }
@@ -56,11 +50,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const supabase = createClient(supabaseUrl, serviceKey, {
-    auth: { persistSession: false },
-  });
+  const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
-  // Both values must match. The reference alone is not an authenticator.
+  // Both values must match. A reference on its own is not an authenticator.
   const { data: order, error } = await supabase
     .from('orders')
     .select('*, payments(*)')
@@ -74,42 +66,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (order.status !== 'pending_payment') {
-    // Already paid. Say so rather than charging a second time.
+    // Already paid. Say so rather than charging twice.
     res.status(409).json({
       message: 'This order has already been paid. Nothing further is owed.',
     });
     return;
   }
 
-  const payments = (order.payments ?? []) as { tx_ref: string; status: string }[];
+  const payments = (order.payments ?? []) as {
+    tx_ref: string; status: string; charge_currency: string; amount: number;
+  }[];
   const pending = payments.find((p) => p.status === 'pending');
   if (!pending) {
     res.status(409).json({ message: 'There is no payment awaiting completion for this order.' });
     return;
   }
 
-  const address = order.shipping_address as { fullName?: string };
+  const address = order.shipping_address as { fullName?: string } | null;
   const { firstName, lastName } = splitName(address?.fullName ?? 'Customer');
-  const decimals = DECIMALS[order.currency as string] ?? 2;
 
   const result = await initializeTransaction(
     {
       // Straight from the database row, never from the request.
-      amount: toMajorUnits(order.total_amount as number, decimals),
-      currency: order.currency as string,
+      amount: toMajorUnits(pending.amount, 2),
+      currency: pending.charge_currency,
       email: order.email as string,
       firstName,
       lastName,
       txRef: pending.tx_ref,
       callbackUrl: `${siteUrl}/api/chapa/webhook`,
-      returnUrl: `${siteUrl}/#/order/${order.reference}?email=${encodeURIComponent(order.email as string)}`,
+      returnUrl: `${siteUrl}/#/order/${order.reference}`,
       description: `Order ${order.reference}`,
     },
     chapaSecret,
   );
 
   if (!result.ok) {
-    console.error('initialize: chapa rejected', result.message);
+    console.error('initialize: chapa rejected —', result.message);
     res.status(502).json({
       message: 'The payment provider could not start this payment. Nothing has been charged.',
     });
